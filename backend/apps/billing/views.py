@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 CREDIT_PACKS = [
-    {'id': 'pack_5k',   'credits': 5_000,   'price_usd': '4.00',   'label': '5,000 credits'},
-    {'id': 'pack_10k',  'credits': 10_000,  'price_usd': '8.00',   'label': '10,000 credits'},
-    {'id': 'pack_25k',  'credits': 25_000,  'price_usd': '18.00',  'label': '25,000 credits'},
-    {'id': 'pack_50k',  'credits': 50_000,  'price_usd': '32.00',  'label': '50,000 credits'},
-    {'id': 'pack_100k', 'credits': 100_000, 'price_usd': '60.00',  'label': '100,000 credits'},
+    {'id': 'pack_5k',   'credits': 5_000,   'price_usd': '5.00',   'label': '5,000 credits'},
+    {'id': 'pack_10k',  'credits': 10_000,  'price_usd': '10.00',  'label': '10,000 credits'},
+    {'id': 'pack_25k',  'credits': 25_000,  'price_usd': '20.00',  'label': '25,000 credits'},
+    {'id': 'pack_50k',  'credits': 50_000,  'price_usd': '35.00',  'label': '50,000 credits'},
+    {'id': 'pack_100k', 'credits': 100_000, 'price_usd': '65.00',  'label': '100,000 credits'},
 ]
 
 PLAN_FEATURES = {
