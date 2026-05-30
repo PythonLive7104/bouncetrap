@@ -4,7 +4,7 @@
 
   <!-- Homepage — highest priority, crawled weekly -->
   <url>
-    <loc>https://bouncetrap.io/</loc>
+    <loc>https://bouncetrap.net/</loc>
     <lastmod>2026-05-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
@@ -12,25 +12,25 @@
 
   <!-- Section anchors — treated as separate indexable destinations -->
   <url>
-    <loc>https://bouncetrap.io/#features</loc>
+    <loc>https://bouncetrap.net/#features</loc>
     <lastmod>2026-05-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://bouncetrap.io/#pricing</loc>
+    <loc>https://bouncetrap.net/#pricing</loc>
     <lastmod>2026-05-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://bouncetrap.io/#api</loc>
+    <loc>https://bouncetrap.net/#api</loc>
     <lastmod>2026-05-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://bouncetrap.io/#faq</loc>
+    <loc>https://bouncetrap.net/#faq</loc>
     <lastmod>2026-05-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -38,7 +38,7 @@
 
   <!-- Registration — good for conversion-intent keywords -->
   <url>
-    <loc>https://bouncetrap.io/register</loc>
+    <loc>https://bouncetrap.net/register</loc>
     <lastmod>2026-05-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
