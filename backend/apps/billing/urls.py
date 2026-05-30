@@ -12,4 +12,5 @@ urlpatterns = [
     path('nowpayments/create-invoice/',   views.CreateNowPaymentsInvoiceView.as_view(), name='billing-nowpayments-create'),
     path('nowpayments/buy-pack/',         views.CreateCreditPackInvoiceView.as_view(),  name='billing-nowpayments-buy-pack'),
     path('nowpayments/webhook/',          views.NowPaymentsWebhookView.as_view(),       name='billing-nowpayments-webhook'),
+    path('nowpayments/ipn/',             views.NowPaymentsWebhookView.as_view(),       name='billing-nowpayments-ipn'),
 ]
