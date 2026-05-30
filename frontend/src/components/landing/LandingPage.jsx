@@ -365,23 +365,24 @@ export default function LandingPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Desktop auth buttons — hidden on mobile */}
               {isAuthenticated ? (
-                <Link to="/dashboard" className="text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors">
+                <Link to="/dashboard" className="hidden md:block text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors">
                   Go to Dashboard
                 </Link>
               ) : (
                 <>
-                  <Link to="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 hidden sm:block">
+                  <Link to="/login" className="hidden md:block text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5">
                     Log in
                   </Link>
-                  <Link to="/register" className="text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors hidden sm:block">
+                  <Link to="/register" className="hidden md:block text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors">
                     Get started free
                   </Link>
                 </>
               )}
               {/* Hamburger — mobile only */}
               <button
-                className="md:hidden text-slate-400 hover:text-white transition-colors p-1"
+                className="md:hidden text-slate-400 hover:text-white transition-colors p-1.5"
                 onClick={() => setMobileMenuOpen((v) => !v)}
                 aria-label="Toggle menu"
               >
