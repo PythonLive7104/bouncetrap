@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary SEO -->
+    <title>BounceTrap — Email Verification API & Bulk List Cleaning</title>
+    <meta name="description" content="Verify email addresses in real time with BounceTrap's 10-step hybrid engine — syntax, MX, SMTP, disposable detection, and catch-all probing. Bulk CSV upload, REST API, and deliverability tools. Start free with 100 credits." />
+    <meta name="keywords" content="email verification, email validation, bulk email checker, email list cleaning, SMTP verification, email verifier API, bounce rate reduction, disposable email detection, email deliverability, email list hygiene, email bounce checker" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="author" content="BounceTrap" />
+    <link rel="canonical" href="https://bouncetrap.io/" />
+
+    <!-- DNS prefetch for performance signals -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bouncetrap.io/" />
+    <meta property="og:site_name" content="BounceTrap" />
+    <meta property="og:title" content="BounceTrap — Email Verification API & Bulk List Cleaning" />
+    <meta property="og:description" content="Real-time email verification with a 10-step hybrid engine. MX lookup, SMTP handshake, disposable detection, and bulk CSV processing. Start free." />
+    <meta property="og:image" content="https://bouncetrap.io/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="BounceTrap email verification platform dashboard" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@bouncetrap" />
+    <meta name="twitter:creator" content="@bouncetrap" />
+    <meta name="twitter:title" content="BounceTrap — Email Verification API" />
+    <meta name="twitter:description" content="10-step hybrid engine for real-time email verification. MX, SMTP, disposable, catch-all. Bulk upload. REST API. Start free." />
+    <meta name="twitter:image" content="https://bouncetrap.io/og-image.png" />
+    <meta name="twitter:image:alt" content="BounceTrap email verification platform" />
+
+    <!-- Favicon & PWA -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Theme -->
+    <meta name="theme-color" content="#0a0a14" />
+
+    <!-- Structured Data — Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "BounceTrap",
+      "url": "https://bouncetrap.io",
+      "logo": "https://bouncetrap.io/og-image.png",
+      "description": "Email verification API and deliverability platform. Verify emails in real time, clean bulk lists, and improve inbox placement.",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "email": "support@bouncetrap.io",
+        "availableLanguage": "English"
+      },
+      "sameAs": [
+        "https://twitter.com/bouncetrap"
+      ]
+    }
+    </script>
+
+    <!-- Structured Data — WebSite with Sitelinks SearchBox -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "BounceTrap",
+      "url": "https://bouncetrap.io",
+      "description": "Email verification API — verify single emails or clean bulk lists with a 10-step hybrid engine.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://bouncetrap.io/?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+
+    <!-- Structured Data — SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "BounceTrap",
+      "url": "https://bouncetrap.io",
+      "description": "Email verification API and bulk email list cleaning service with a 10-step hybrid engine covering syntax, MX, SMTP, disposable, and catch-all detection.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "browserRequirements": "Requires JavaScript",
+      "screenshot": "https://bouncetrap.io/og-image.png",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "124",
+        "bestRating": "5"
+      },
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "Free",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "100 free credits, no credit card required"
+        },
+        {
+          "@type": "Offer",
+          "name": "Starter",
+          "price": "20",
+          "priceCurrency": "USD",
+          "billingIncrement": "P1M",
+          "description": "25,000 credits per month with full API access"
+        },
+        {
+          "@type": "Offer",
+          "name": "Growth",
+          "price": "70",
+          "priceCurrency": "USD",
+          "billingIncrement": "P1M",
+          "description": "100,000 credits per month with deliverability tools"
+        },
+        {
+          "@type": "Offer",
+          "name": "Pro",
+          "price": "110",
+          "priceCurrency": "USD",
+          "billingIncrement": "P1M",
+          "description": "200,000 credits per month with bulk up to 500k rows"
+        }
+      ],
+      "featureList": [
+        "Real-time SMTP email verification",
+        "Bulk CSV email list upload up to 500,000 rows",
+        "MX record lookup and validation",
+        "Disposable email domain detection",
+        "Catch-all domain detection",
+        "REST API with API key authentication",
+        "Deliverability score 0–100",
+        "SPF / DMARC / DKIM record checker",
+        "Email header analyzer",
+        "Inbox placement testing",
+        "Email finder by name and domain",
+        "List health score A–F grading",
+        "Webhook notifications on job completion",
+        "Team collaboration with role-based access"
+      ]
+    }
+    </script>
+
+    <!-- Structured Data — HowTo: How to verify an email address -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to verify an email address with BounceTrap",
+      "description": "Verify whether an email address is valid, deliverable, and safe to send to using BounceTrap's 10-step hybrid engine.",
+      "totalTime": "PT1M",
+      "estimatedCost": { "@type": "MonetaryAmount", "currency": "USD", "value": "0" },
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Create a free account",
+          "text": "Sign up at bouncetrap.io — no credit card required. You receive 100 free verification credits immediately.",
+          "url": "https://bouncetrap.io/register"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Enter the email address",
+          "text": "Go to Verify Email in the dashboard. Type or paste the email address you want to check.",
+          "url": "https://bouncetrap.io/dashboard/verify"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Get the result",
+          "text": "BounceTrap runs 10 checks — syntax, MX, SMTP, disposable, catch-all, and more — in under 5 seconds and returns a status (valid, invalid, risky, or unknown) plus a deliverability score from 0–100."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Use the API for automation",
+          "text": "For bulk or programmatic use, call POST /api/v1/verify/single/ with your API key. For bulk lists, upload a CSV via POST /api/v1/verify/bulk/ and poll the job until complete."
+        }
+      ]
+    }
+    </script>
+
+    <!-- Structured Data — HowTo: How to clean a bulk email list -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to clean a bulk email list",
+      "description": "Remove invalid, disposable, and risky email addresses from a CSV list to reduce bounce rates and improve deliverability.",
+      "totalTime": "PT10M",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Prepare your CSV file",
+          "text": "Export your email list as a CSV or TXT file. Each row should contain one email address. Lists up to 500,000 rows are supported."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Upload the file in Bulk Jobs",
+          "text": "Go to Bulk Jobs in your BounceTrap dashboard and upload your file. Select the column that contains the email addresses if using CSV."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Wait for processing",
+          "text": "BounceTrap processes your list asynchronously. You can monitor real-time progress in the dashboard."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Download cleaned results",
+          "text": "When complete, download the result CSV containing each email with its status, deliverability score, and flags. Filter to keep only 'valid' addresses."
+        }
+      ]
+    }
+    </script>
+
+    <!-- Structured Data — FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How accurate is BounceTrap's email verification?",
+          "acceptedAnswer": { "@type": "Answer", "text": "BounceTrap achieves 97%+ accuracy by combining a 10-step local pipeline (syntax, MX, SMTP, disposable blocklist, catch-all probing) with an extended deep verification layer. Emails that can be resolved locally never touch the external API, keeping costs low without sacrificing accuracy." }
+        },
+        {
+          "@type": "Question",
+          "name": "What file formats does the bulk upload support?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Bulk upload supports CSV and TXT files. For CSV files you can specify the column containing email addresses. For plain TXT files one email per line is expected. Files up to 500,000 rows are supported on the Pro plan." }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need a credit card to get started?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. You can sign up for free and receive 100 verification credits immediately — no credit card required. Upgrade at any time when you need more capacity." }
+        },
+        {
+          "@type": "Question",
+          "name": "How does the REST API authentication work?",
+          "acceptedAnswer": { "@type": "Answer", "text": "API authentication uses the X-API-Key request header. Generate keys from your dashboard under API Keys. Keys are stored as cryptographic hashes — the raw key is shown only once at creation time. Starter plan and above can generate API keys." }
+        },
+        {
+          "@type": "Question",
+          "name": "What is a catch-all email domain?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A catch-all domain accepts all incoming emails regardless of whether the individual mailbox exists, making it impossible to confirm address validity via SMTP. BounceTrap detects catch-all domains and marks those addresses as 'risky' rather than 'valid' to protect your sender reputation." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I cancel my subscription at any time?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. You can cancel or downgrade your plan at any time from your billing page. No lock-in contracts. Your credit balance never expires — unused credits are preserved when your subscription lapses and become available again the moment you renew." }
+        },
+        {
+          "@type": "Question",
+          "name": "What is a disposable email address?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A disposable email address is a temporary address from services like Mailinator, Guerrilla Mail, or 10MinuteMail. They are used to avoid spam but are worthless for marketing lists. BounceTrap checks against a blocklist of 50,000+ known disposable domains and flags them automatically." }
+        },
+        {
+          "@type": "Question",
+          "name": "How does BounceTrap reduce email bounce rates?",
+          "acceptedAnswer": { "@type": "Answer", "text": "BounceTrap removes invalid addresses before you send. It performs live SMTP handshakes to confirm the mailbox exists, detects disposable and role-based addresses, and identifies catch-all domains. Removing these from your list before sending keeps your bounce rate below 2%, protecting your sender reputation and inbox placement." }
+        },
+        {
+          "@type": "Question",
+          "name": "What does the deliverability score mean?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The deliverability score is a number from 0 to 100 that represents the likelihood an email will be successfully delivered to the inbox. A score above 80 is considered safe to send. It is calculated from SMTP response, catch-all risk, role-based flags, disposable status, and free provider signals." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I verify emails via the API without a dashboard?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Use POST /api/v1/verify/single/ with your X-API-Key header and a JSON body containing the email field. The response includes status, score, sub_status, esp, flags, and more. Full OpenAPI documentation is available at bouncetrap.io/api/docs/." }
+        },
+        {
+          "@type": "Question",
+          "name": "What is SPF, DKIM, and DMARC and why do they matter?",
+          "acceptedAnswer": { "@type": "Answer", "text": "SPF (Sender Policy Framework), DKIM (DomainKeys Identified Mail), and DMARC (Domain-based Message Authentication, Reporting, and Conformance) are DNS-based email authentication standards. Together they prove your emails are legitimate and prevent spoofing. BounceTrap's deliverability tools check all three for your sending domain and flag missing or misconfigured records." }
+        },
+        {
+          "@type": "Question",
+          "name": "How many emails can I verify per minute via the API?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Rate limits depend on your plan: Free plan allows 60 requests per minute, Starter 600/min, Growth 3,000/min, and Pro 12,000/min. For bulk processing of large lists, use the bulk upload endpoint which has no per-minute limit." }
+        }
+      ]
+    }
+    </script>
+
+    <!-- Structured Data — BreadcrumbList for main nav -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home",     "item": "https://bouncetrap.io/" },
+        { "@type": "ListItem", "position": 2, "name": "Features", "item": "https://bouncetrap.io/#features" },
+        { "@type": "ListItem", "position": 3, "name": "Pricing",  "item": "https://bouncetrap.io/#pricing" },
+        { "@type": "ListItem", "position": 4, "name": "API",      "item": "https://bouncetrap.io/#api" },
+        { "@type": "ListItem", "position": 5, "name": "FAQ",      "item": "https://bouncetrap.io/#faq" }
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

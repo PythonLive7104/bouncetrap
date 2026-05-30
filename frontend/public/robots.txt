@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /register
+Disallow: /dashboard/
+Disallow: /login
+Disallow: /forgot-password
+Disallow: /api/
+
+# Block common vulnerability scanners from wasting crawl budget
+Disallow: /wp-admin/
+Disallow: /wp-login.php
+Disallow: /.env
+Disallow: /admin/
+
+Sitemap: https://bouncetrap.io/sitemap.xml
