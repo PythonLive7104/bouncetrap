@@ -23,12 +23,7 @@ backend/.env
 backend/.env.*
 !backend/.env.production.example
 
-# ── Node / Frontend ────────────────────────────────────────────────────────
-node_modules/
-frontend/dist/
-frontend/.env
-frontend/.env.*
-!frontend/.env.local.example
+
 
 # ── Docker ────────────────────────────────────────────────────────────────
 # Keep docker-compose.yml tracked; ignore overrides
