@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
@@ -10,7 +11,7 @@ function SubscriptionBanner({ active, expiresAt, plan }) {
 
   if (!active || (expiry && expiry <= now)) {
     return (
-      <div className="mx-8 mt-6 px-5 py-4 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-start gap-3">
+      <div className="mx-4 md:mx-8 mt-6 px-5 py-4 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-start gap-3">
         <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
         </svg>
@@ -27,7 +28,7 @@ function SubscriptionBanner({ active, expiresAt, plan }) {
 
   if (daysLeft !== null && daysLeft <= 7) {
     return (
-      <div className="mx-8 mt-6 px-5 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3">
+      <div className="mx-4 md:mx-8 mt-6 px-5 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3">
         <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -172,107 +173,144 @@ const PAGE_TITLE = {
   '/dashboard/settings':         'Settings',
 }
 
+function SidebarContent({ user, credits, onNavClick, onLogout }) {
+  const planLimit = { free: 100, starter: 25000, growth: 100000, pro: 200000 }[user?.plan] || 100
+
+  return (
+    <>
+      {/* Brand */}
+      <div className="h-16 flex items-center px-5 border-b border-white/6 shrink-0">
+        <NavLink to="/" className="flex items-center gap-2.5 font-bold text-lg text-white">
+          <img src="/favicon.svg" alt="BounceTrap" className="w-7 h-7" />
+          BounceTrap
+        </NavLink>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {NAV.map(({ to, label, icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/dashboard'}
+            onClick={onNavClick}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-brand-600/20 text-brand-300 border border-brand-600/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+              }`
+            }
+          >
+            {icon}
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Credits pill */}
+      <div className="mx-3 mb-3 px-4 py-3 rounded-xl bg-brand-950/60 border border-brand-800/40 shrink-0">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs text-slate-400 font-medium">Credits</span>
+          <span className="text-xs text-brand-300 font-semibold">{credits.toLocaleString()}</span>
+        </div>
+        <div className="w-full h-1.5 rounded-full bg-white/8">
+          <div
+            className="h-1.5 rounded-full bg-brand-500 transition-all"
+            style={{ width: `${Math.min((credits / planLimit) * 100, 100)}%` }}
+          />
+        </div>
+        <p className="text-xs text-slate-600 mt-1.5">of {planLimit.toLocaleString()} total</p>
+      </div>
+
+      {/* User footer */}
+      <div className="border-t border-white/6 px-3 py-3 shrink-0">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {user?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">{user?.full_name || 'User'}</p>
+            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+          </div>
+          <button
+            onClick={onLogout}
+            title="Sign out"
+            className="text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, credits, logout, setAuth, subscriptionActive, subscriptionExpiresAt } = useAuthStore()
+  const { user, credits, logout, subscriptionActive, subscriptionExpiresAt } = useAuthStore()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const pageTitle = PAGE_TITLE[location.pathname] || 'Dashboard'
-
-  // Profile is synced by the overview's dashboard summary call.
-  // Only re-fetch when navigating away from and back to the overview.
 
   function handleLogout() {
     logout()
     navigate('/')
   }
 
-  const planLimit = { free: 100, starter: 25000, growth: 100000, pro: 200000 }[user?.plan] || 100
-
   return (
     <div className="min-h-screen bg-[#0a0a14] font-sans flex">
-      {/* ── Sidebar ──────────────────────────────────────── */}
-      <aside className="w-60 shrink-0 border-r border-white/6 flex flex-col">
-        {/* Brand */}
-        <div className="h-16 flex items-center px-5 border-b border-white/6">
-          <NavLink to="/" className="flex items-center gap-2.5 font-bold text-lg text-white">
-            <img src="/favicon.svg" alt="BounceTrap" className="w-7 h-7" />
-            BounceTrap
-          </NavLink>
-        </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {NAV.map(({ to, label, icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/dashboard'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-brand-600/20 text-brand-300 border border-brand-600/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
-                }`
-              }
-            >
-              {icon}
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+      {/* ── Mobile overlay backdrop ───────────────────────── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/60 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-        {/* Credits pill */}
-        <div className="mx-3 mb-3 px-4 py-3 rounded-xl bg-brand-950/60 border border-brand-800/40">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-slate-400 font-medium">Credits</span>
-            <span className="text-xs text-brand-300 font-semibold">{credits.toLocaleString()}</span>
-          </div>
-          <div className="w-full h-1.5 rounded-full bg-white/8">
-            <div
-              className="h-1.5 rounded-full bg-brand-500 transition-all"
-              style={{ width: `${Math.min((credits / planLimit) * 100, 100)}%` }}
-            />
-          </div>
-          <p className="text-xs text-slate-600 mt-1.5">of {planLimit.toLocaleString()} total</p>
-        </div>
-
-        {/* User footer */}
-        <div className="border-t border-white/6 px-3 py-3">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {user?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user?.full_name || 'User'}</p>
-              <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Sign out"
-              className="text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
-        </div>
+      {/* ── Sidebar — desktop: always visible, mobile: drawer ── */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-30 w-64 bg-[#0a0a14] border-r border-white/6 flex flex-col
+        transform transition-transform duration-200 ease-in-out
+        lg:relative lg:translate-x-0 lg:w-60
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <SidebarContent
+          user={user}
+          credits={credits}
+          onNavClick={() => setSidebarOpen(false)}
+          onLogout={handleLogout}
+        />
       </aside>
 
       {/* ── Main ─────────────────────────────────────────── */}
       <main className="flex-1 min-w-0 overflow-y-auto">
         {/* Top bar */}
-        <header className="h-16 border-b border-white/6 flex items-center justify-between px-8">
-          <div>
+        <header className="h-16 border-b border-white/6 flex items-center justify-between px-4 md:px-8">
+          <div className="flex items-center gap-3">
+            {/* Hamburger — mobile only */}
+            <button
+              className="lg:hidden text-slate-400 hover:text-white transition-colors p-1"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <h1 className="text-white font-semibold text-base">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/dashboard/verify')}
-              className="text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors"
+              className="text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white px-3 md:px-4 py-2 rounded-lg transition-colors"
             >
-              + Verify email
+              <span className="hidden sm:inline">+ Verify email</span>
+              <span className="sm:hidden">+</span>
             </button>
           </div>
         </header>
@@ -282,7 +320,7 @@ export default function DashboardLayout() {
           expiresAt={subscriptionExpiresAt}
           plan={user?.plan}
         />
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           <Outlet />
         </div>
       </main>

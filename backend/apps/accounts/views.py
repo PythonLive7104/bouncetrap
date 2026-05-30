@@ -215,33 +215,36 @@ def _social_login_response(user):
 class GoogleSocialAuthView(APIView):
     """
     POST /api/v1/auth/social/google/
-    Body: { "credential": "<Google ID token from frontend>" }
-    Verifies the token, finds or creates the user, returns JWT.
+    Body: { "credential": "<Google OAuth2 access token from frontend>" }
+    Calls Google userinfo endpoint to verify, finds or creates the user, returns JWT.
     """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        credential = request.data.get('credential', '')
-        if not credential:
+        import requests as http_requests
+
+        access_token = request.data.get('credential', '')
+        if not access_token:
             return Response({'detail': 'credential is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        from google.oauth2 import id_token
-        from google.auth.transport import requests as google_requests
-
-        client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
-        if not client_id:
-            return Response({'detail': 'Google login is not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
         try:
-            idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), client_id)
-        except ValueError as e:
-            return Response({'detail': f'Invalid Google token: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+            resp = http_requests.get(
+                'https://www.googleapis.com/oauth2/v2/userinfo',
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10,
+            )
+            if not resp.ok:
+                return Response({'detail': 'Invalid Google token.'}, status=status.HTTP_400_BAD_REQUEST)
+            idinfo = resp.json()
+        except Exception:
+            return Response({'detail': 'Could not verify Google token.'}, status=status.HTTP_502_BAD_GATEWAY)
 
         email     = idinfo.get('email', '').lower()
         full_name = idinfo.get('name', '')
+        verified  = idinfo.get('verified_email', False)
 
-        if not email:
-            return Response({'detail': 'Google account has no email address.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email or not verified:
+            return Response({'detail': 'Google account has no verified email address.'}, status=status.HTTP_400_BAD_REQUEST)
 
         user, created = User.objects.get_or_create(
             email=email,

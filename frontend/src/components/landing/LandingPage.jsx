@@ -335,6 +335,7 @@ function ApiSection({ ctaTo }) {
 /* ─── Component ────────────────────────────────────────────────────────── */
 export default function LandingPage() {
   const [billing, setBilling] = useState('monthly')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const ctaTo    = isAuthenticated ? '/dashboard' : '/register'
   const ctaLabel = isAuthenticated ? 'Go to Dashboard' : 'Start verifying free'
@@ -373,13 +374,61 @@ export default function LandingPage() {
                   <Link to="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 hidden sm:block">
                     Log in
                   </Link>
-                  <Link to="/register" className="text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors">
+                  <Link to="/register" className="text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg transition-colors hidden sm:block">
                     Get started free
                   </Link>
                 </>
               )}
+              {/* Hamburger — mobile only */}
+              <button
+                className="md:hidden text-slate-400 hover:text-white transition-colors p-1"
+                onClick={() => setMobileMenuOpen((v) => !v)}
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
             </div>
           </nav>
+
+          {/* Mobile menu dropdown */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-white/5 bg-[#0a0a14]/95 px-6 py-4 space-y-1">
+              {[['Features', '#features'], ['Pricing', '#pricing'], ['API', '#api'], ['FAQ', '#faq']].map(([l, h]) => (
+                <a
+                  key={l}
+                  href={h}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
+                >
+                  {l}
+                </a>
+              ))}
+              <div className="pt-3 border-t border-white/6 flex flex-col gap-2">
+                {isAuthenticated ? (
+                  <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-lg text-sm transition-colors">
+                    Go to Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 border border-white/10 text-slate-300 hover:text-white rounded-lg text-sm transition-colors">
+                      Log in
+                    </Link>
+                    <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-lg text-sm transition-colors">
+                      Get started free
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </header>
 
         {/* ── Hero ────────────────────────────────────────────────────── */}
