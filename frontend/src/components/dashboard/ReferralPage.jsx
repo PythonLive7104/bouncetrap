@@ -105,7 +105,7 @@ export default function ReferralPage() {
             },
             {
               step: '3',
-              title: 'You both get 2,000 credits',
+              title: 'You both get 1,000 credits',
               desc: 'Instantly credited to both accounts — no minimum purchase required.',
               color: 'bg-emerald-600',
             },
