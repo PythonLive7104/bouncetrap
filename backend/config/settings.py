@@ -163,6 +163,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+# ── CSRF ──────────────────────────────────────────────────────────────────
+CSRF_TRUSTED_ORIGINS = [
+    'https://bouncetrap.net',
+    'https://www.bouncetrap.net',
+]
+
 # ── Celery ────────────────────────────────────────────────────────────────
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = 'django-db'
@@ -184,7 +190,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # ── Email — Resend via Anymail ────────────────────────────────────────────
 EMAIL_BACKEND      = 'anymail.backends.resend.EmailBackend'
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@bouncetrap.io')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@bouncetrap.net')
 ANYMAIL = {
     'RESEND_API_KEY': config('RESEND_API_KEY', default=''),
 }
