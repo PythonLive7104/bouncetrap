@@ -202,7 +202,7 @@ class ReferralView(APIView):
             'referral_link':    link,
             'total_referrals':  total_referrals,
             'credits_earned':   user.referral_credits_earned,
-            'bonus_per_signup': 2_000,
+            'bonus_per_signup': 1_000,
         })
 
 

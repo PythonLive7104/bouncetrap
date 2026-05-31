@@ -7,7 +7,7 @@ from .models import APIKey
 User = get_user_model()
 
 
-REFERRAL_BONUS = 2_000  # credits awarded to both referrer and referee
+REFERRAL_BONUS = 1_000  # credits awarded to both referrer and referee
 
 
 class RegisterSerializer(serializers.ModelSerializer):

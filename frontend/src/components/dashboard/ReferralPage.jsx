@@ -37,7 +37,7 @@ export default function ReferralPage() {
         <h2 className="text-xl font-bold text-white">Referral Program</h2>
         <p className="text-sm text-slate-400 mt-1">
           Share your referral link. When someone signs up using your link, you both receive
-          <span className="text-white font-semibold"> 2,000 bonus credits</span> — instantly.
+          <span className="text-white font-semibold"> 1,000 bonus credits</span> — instantly.
         </p>
       </div>
 
@@ -46,7 +46,7 @@ export default function ReferralPage() {
         {[
           { label: 'Total referrals', value: data?.total_referrals ?? 0 },
           { label: 'Credits earned',  value: (data?.credits_earned ?? 0).toLocaleString() },
-          { label: 'Per signup',      value: (data?.bonus_per_signup ?? 2000).toLocaleString() },
+          { label: 'Per signup',      value: (data?.bonus_per_signup ?? 1000).toLocaleString() },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] px-5 py-4 text-center">
             <p className="text-2xl font-bold text-white">{value}</p>
