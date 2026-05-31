@@ -700,7 +700,13 @@ export default function LandingPage() {
                     )}
                     {!isYearly && <div className="mb-3" />}
                     <ul className="space-y-2.5 flex-1 mb-6">
-                      {features.map((f) => (
+                      <li className={`flex items-start gap-2 text-sm ${highlight ? 'text-brand-100' : 'text-slate-300'}`}>
+                        <svg className={`w-4 h-4 mt-0.5 shrink-0 ${highlight ? 'text-emerald-300' : 'text-emerald-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        {fmt(displayCredits)} credits
+                      </li>
+                      {features.slice(1).map((f) => (
                         <li key={f} className={`flex items-start gap-2 text-sm ${highlight ? 'text-brand-100' : 'text-slate-300'}`}>
                           <svg className={`w-4 h-4 mt-0.5 shrink-0 ${highlight ? 'text-emerald-300' : 'text-emerald-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

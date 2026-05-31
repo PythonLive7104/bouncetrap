@@ -166,18 +166,18 @@ function PlanCard({ plan, isCurrent, isYearly, onUpgrade, isUpgrading }) {
 
       {/* Features */}
       <ul className="space-y-2 flex-1">
-        {plan.features.map((f) => (
+        {plan.monthlyPrice > 0 && (
+          <li className="flex items-start gap-2 text-sm text-slate-300">
+            <CheckIcon />
+            {credits.toLocaleString()} credits
+          </li>
+        )}
+        {plan.features.slice(plan.monthlyPrice > 0 ? 1 : 0).map((f) => (
           <li key={f} className="flex items-start gap-2 text-sm text-slate-300">
             <CheckIcon />
             {f}
           </li>
         ))}
-        {isYearly && plan.monthlyPrice > 0 && (
-          <li className="flex items-start gap-2 text-sm text-emerald-400 font-medium">
-            <CheckIcon />
-            {plan.monthlyCredits.toLocaleString()} bonus credits (12th month free)
-          </li>
-        )}
       </ul>
 
       {/* CTA */}
