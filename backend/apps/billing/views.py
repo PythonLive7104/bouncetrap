@@ -27,11 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 CREDIT_PACKS = [
-    {'id': 'pack_10k',  'credits': 10_000,  'price_usd': '20.00',  'label': '10,000 credits'},
-    {'id': 'pack_25k',  'credits': 25_000,  'price_usd': '40.00',  'label': '25,000 credits'},
-    {'id': 'pack_50k',  'credits': 50_000,  'price_usd': '70.00',  'label': '50,000 credits'},
-    {'id': 'pack_100k', 'credits': 100_000, 'price_usd': '120.00', 'label': '100,000 credits'},
-    {'id': 'pack_250k', 'credits': 250_000, 'price_usd': '250.00', 'label': '250,000 credits'},
+    {'id': 'pack_25k',  'credits': 25_000,  'price_usd': '20.00',  'label': '25,000 credits'},
+    {'id': 'pack_50k',  'credits': 50_000,  'price_usd': '40.00',  'label': '50,000 credits'},
+    {'id': 'pack_100k', 'credits': 100_000, 'price_usd': '70.00',  'label': '100,000 credits'},
+    {'id': 'pack_200k', 'credits': 200_000, 'price_usd': '140.00', 'label': '200,000 credits'},
+    {'id': 'pack_400k', 'credits': 400_000, 'price_usd': '230.00', 'label': '400,000 credits'},
 ]
 
 PLAN_FEATURES = {
@@ -296,30 +296,31 @@ class NowPaymentsWebhookView(APIView):
 
     def post(self, request):
         ipn_secret = settings.NOWPAYMENTS_IPN_SECRET
-        if not ipn_secret:
-            return Response(status=status.HTTP_200_OK)
-
-        sig  = request.META.get('HTTP_X_NOWPAYMENTS_SIG', '')
-        body = request.body
 
         try:
-            payload = json.loads(body)
+            payload = json.loads(request.body)
         except json.JSONDecodeError:
             return Response({'detail': 'Bad JSON.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # NOWPayments signature: HMAC-SHA512 of the alphabetically-sorted JSON
-        sorted_body = json.dumps(payload, sort_keys=True, separators=(',', ':'))
-        expected = hmac.new(
-            ipn_secret.encode(),
-            sorted_body.encode(),
-            hashlib.sha512,
-        ).hexdigest()
-
-        if not hmac.compare_digest(sig, expected):
-            return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Verify HMAC-SHA512 signature when secret is configured
+        if ipn_secret:
+            sig         = request.META.get('HTTP_X_NOWPAYMENTS_SIG', '')
+            sorted_body = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+            expected    = hmac.new(
+                ipn_secret.encode(),
+                sorted_body.encode(),
+                hashlib.sha512,
+            ).hexdigest()
+            if not hmac.compare_digest(sig, expected):
+                logger.warning('NOWPayments webhook: invalid signature')
+                return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            logger.warning('NOWPayments webhook: NOWPAYMENTS_IPN_SECRET not set — skipping signature check')
 
         order_id       = payload.get('order_id', '')
         payment_status = payload.get('payment_status', '')
+
+        logger.info('NOWPayments IPN: order=%s status=%s', order_id, payment_status)
 
         if payment_status in ('confirmed', 'finished'):
             self._confirm_invoice(order_id)
@@ -340,15 +341,16 @@ class NowPaymentsWebhookView(APIView):
         from datetime import timedelta
         from django.db import transaction
 
-        try:
-            invoice = NowPaymentsInvoice.objects.select_for_update().get(
-                order_id=order_id,
-                status=NowPaymentsInvoice.STATUS_WAITING,
-            )
-        except NowPaymentsInvoice.DoesNotExist:
-            return  # already processed or unknown
-
         with transaction.atomic():
+            try:
+                invoice = NowPaymentsInvoice.objects.select_for_update().get(
+                    order_id=order_id,
+                    status=NowPaymentsInvoice.STATUS_WAITING,
+                )
+            except NowPaymentsInvoice.DoesNotExist:
+                logger.info('NOWPayments IPN: order=%s already processed or unknown', order_id)
+                return
+
             invoice.status      = NowPaymentsInvoice.STATUS_CONFIRMED
             invoice.resolved_at = timezone.now()
             invoice.save()
@@ -357,11 +359,9 @@ class NowPaymentsWebhookView(APIView):
             user.credits += invoice.credits_to_add
 
             if invoice.invoice_type == NowPaymentsInvoice.TYPE_PACK:
-                # Credit pack: just add credits, no plan or subscription change
                 user.save(update_fields=['credits'])
                 notes = f'Credit pack {invoice.plan} via crypto'
             else:
-                # Plan subscription
                 user.plan = invoice.plan
                 now = timezone.now()
                 current_expiry = user.subscription_expires_at
@@ -380,3 +380,4 @@ class NowPaymentsWebhookView(APIView):
                 balance_after = user.credits,
                 notes         = notes,
             )
+            logger.info('NOWPayments IPN: credited %d to user %s (order=%s)', invoice.credits_to_add, user.email, order_id)

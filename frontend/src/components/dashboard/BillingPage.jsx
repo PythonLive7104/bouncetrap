@@ -209,11 +209,11 @@ function PlanCard({ plan, isCurrent, isYearly, onUpgrade, isUpgrading }) {
 }
 
 const PACKS = [
-  { id: 'pack_10k',  credits: 10_000,  price: 20,  label: '10K' },
-  { id: 'pack_25k',  credits: 25_000,  price: 40,  label: '25K' },
-  { id: 'pack_50k',  credits: 50_000,  price: 70,  label: '50K' },
-  { id: 'pack_100k', credits: 100_000, price: 120, label: '100K' },
-  { id: 'pack_250k', credits: 250_000, price: 250, label: '250K' },
+  { id: 'pack_25k',  credits: 25_000,  price: 20,  label: '25K' },
+  { id: 'pack_50k',  credits: 50_000,  price: 40,  label: '50K' },
+  { id: 'pack_100k', credits: 100_000, price: 70,  label: '100K' },
+  { id: 'pack_200k', credits: 200_000, price: 140, label: '200K' },
+  { id: 'pack_400k', credits: 400_000, price: 230, label: '400K' },
 ]
 
 function CreditPacksSection({ onBuy, buying }) {
