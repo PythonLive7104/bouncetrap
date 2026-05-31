@@ -259,6 +259,90 @@ function CreditPacksSection({ onBuy, buying }) {
   )
 }
 
+const STATUS_STYLES = {
+  waiting:    'bg-amber-500/10 text-amber-300 border-amber-500/20',
+  confirming: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+  confirmed:  'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+  finished:   'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+  failed:     'bg-red-500/10 text-red-300 border-red-500/20',
+  expired:    'bg-slate-500/10 text-slate-400 border-slate-500/20',
+}
+
+function InvoicesSection() {
+  const [invoices, setInvoices] = useState([])
+  const [loading, setLoading]   = useState(true)
+
+  useEffect(() => {
+    api.get('/billing/invoices/')
+      .then(({ data }) => setInvoices(data.results || data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden">
+      <div className="px-6 py-4 border-b border-white/6 flex items-center justify-between">
+        <h3 className="text-white font-semibold text-sm">Payment history</h3>
+        <span className="text-xs text-slate-500">All payments via NOWPayments</span>
+      </div>
+
+      {loading ? (
+        <div className="divide-y divide-white/5">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="px-6 py-4 flex items-center justify-between animate-pulse">
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-40 rounded bg-white/8" />
+                <div className="h-2.5 w-24 rounded bg-white/5" />
+              </div>
+              <div className="h-5 w-20 rounded-full bg-white/8" />
+            </div>
+          ))}
+        </div>
+      ) : invoices.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <svg className="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p className="text-slate-500 text-sm">No payments yet.</p>
+          <p className="text-slate-600 text-xs mt-1">Your payment history will appear here after your first purchase.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-white/5">
+          {invoices.map((inv) => (
+            <div key={inv.id} className="px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-slate-200 text-sm font-medium">{inv.description}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {new Date(inv.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {inv.resolved_at && inv.status === 'finished' && (
+                    <span className="ml-2 text-slate-600">· confirmed {new Date(inv.resolved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-sm font-semibold text-white">${parseFloat(inv.amount_usd).toFixed(2)}</span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${STATUS_STYLES[inv.status] || STATUS_STYLES.waiting}`}>
+                  {inv.status}
+                </span>
+                {(inv.status === 'waiting' || inv.status === 'confirming') && (
+                  <a
+                    href={inv.invoice_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors"
+                  >
+                    Pay now
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function BillingPage() {
   const { user, credits, subscriptionActive, subscriptionExpiresAt } = useAuthStore()
   const [isYearly, setIsYearly]         = useState(false)
@@ -486,17 +570,7 @@ export default function BillingPage() {
         )}
       </div>
 
-      {/* Invoices stub */}
-      <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-        <h3 className="text-white font-semibold text-sm mb-3">Invoices</h3>
-        <div className="text-center py-6">
-          <svg className="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p className="text-slate-500 text-sm">No invoices yet.</p>
-          <p className="text-slate-600 text-xs mt-1">Invoices will appear here after your first payment.</p>
-        </div>
-      </div>
+      <InvoicesSection />
     </div>
   )
 }

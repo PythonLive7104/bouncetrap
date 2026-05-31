@@ -68,7 +68,7 @@ class LogoutView(APIView):
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
-    """FR-AUTH-07 — Get and update profile."""
+    """FR-AUTH-07 — Get and update profile. DELETE permanently removes the account."""
 
     def get_serializer_class(self):
         if self.request.method in ('PUT', 'PATCH'):
@@ -77,6 +77,10 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+    def delete(self, request, *args, **kwargs):
+        request.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ChangePasswordView(APIView):
@@ -188,7 +192,7 @@ class ReferralView(APIView):
 
     def get(self, request):
         user     = request.user
-        frontend = getattr(settings, 'FRONTEND_URL', 'https://bouncetrap.io').rstrip('/')
+        frontend = getattr(settings, 'FRONTEND_URL', 'https://bouncetrap.net').rstrip('/')
         link     = f'{frontend}/register?ref={user.referral_code}'
 
         total_referrals = User.objects.filter(referred_by=user).count()

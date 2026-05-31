@@ -493,7 +493,21 @@ function WebhookSection() {
 function DangerZoneSection() {
   const [confirm, setConfirm] = useState('')
   const [open, setOpen]       = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError]     = useState('')
   const { user, logout }      = useAuthStore()
+
+  async function handleDelete() {
+    setDeleting(true)
+    setError('')
+    try {
+      await api.delete('/auth/profile/')
+      logout()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not delete account. Please try again.')
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.03] p-6">
@@ -519,29 +533,32 @@ function DangerZoneSection() {
             <p className="text-slate-400 text-sm mb-4">
               This will permanently delete all your data, jobs, and credits. Type your email to confirm.
             </p>
+            {error && (
+              <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
+                {error}
+              </div>
+            )}
             <input
               type="email"
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={(e) => { setConfirm(e.target.value); setError('') }}
               placeholder={user?.email}
               className="w-full px-4 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-red-500/50 mb-4"
             />
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => { setOpen(false); setConfirm('') }}
-                className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors"
+                onClick={() => { setOpen(false); setConfirm(''); setError('') }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                disabled={confirm !== user?.email}
-                onClick={() => {
-                  // TODO: call DELETE /auth/profile/ then logout
-                  logout()
-                }}
+                disabled={confirm !== user?.email || deleting}
+                onClick={handleDelete}
                 className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
               >
-                Delete permanently
+                {deleting ? 'Deleting…' : 'Delete permanently'}
               </button>
             </div>
           </div>

@@ -20,6 +20,7 @@ from .serializers import (
     PlanSerializer,
     CreditPackSerializer,
     SubscribeSerializer,
+    NowPaymentsInvoiceSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,15 +133,12 @@ class CreditHistoryView(generics.ListAPIView):
         return CreditLedger.objects.filter(user=self.request.user)
 
 
-class InvoiceListView(APIView):
-    """GET /api/v1/billing/invoices/ — FR-BILL-04 (from Stripe)."""
+class InvoiceListView(generics.ListAPIView):
+    """GET /api/v1/billing/invoices/ — list the user's NOWPayments invoices."""
+    serializer_class = NowPaymentsInvoiceSerializer
 
-    def get(self, request):
-        if not settings.STRIPE_SECRET_KEY:
-            return Response([])
-
-        # TODO: fetch from Stripe API using request.user.stripe_customer_id
-        return Response([])
+    def get_queryset(self):
+        return NowPaymentsInvoice.objects.filter(user=self.request.user)
 
 
 PLAN_CREDITS_MAP = {

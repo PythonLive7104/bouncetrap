@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.conf import settings
-from .models import CreditLedger, CreditPack
+from .models import CreditLedger, CreditPack, NowPaymentsInvoice
 
 
 class CreditLedgerSerializer(serializers.ModelSerializer):
@@ -40,3 +40,22 @@ class SubscribeSerializer(serializers.Serializer):
 class PurchaseCreditPackSerializer(serializers.Serializer):
     pack_id           = serializers.UUIDField()
     payment_method_id = serializers.CharField()
+
+
+class NowPaymentsInvoiceSerializer(serializers.ModelSerializer):
+    description = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = NowPaymentsInvoice
+        fields = (
+            'id', 'invoice_id', 'invoice_url', 'order_id',
+            'invoice_type', 'description',
+            'plan', 'billing_period', 'amount_usd',
+            'credits_to_add', 'status', 'created_at', 'resolved_at',
+        )
+
+    def get_description(self, obj):
+        if obj.invoice_type == NowPaymentsInvoice.TYPE_PACK:
+            return f'Credit top-up — {obj.credits_to_add:,} credits'
+        period = obj.billing_period.title() if obj.billing_period else ''
+        return f'{obj.plan.title()} plan ({period})' if period else f'{obj.plan.title()} plan'
