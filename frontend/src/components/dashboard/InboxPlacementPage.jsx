@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import api from '../../services/api'
+import { useAuthStore } from '../../store/authStore'
 
 const PROVIDER_ICONS = {
   gmail:   { label: 'Gmail',   color: 'text-red-400',   bg: 'bg-red-500/10   border-red-500/20' },
@@ -69,6 +70,7 @@ function TestCard({ test, onSelect, selected }) {
 }
 
 export default function InboxPlacementPage() {
+  const { setCredits } = useAuthStore()
   const [form, setForm]         = useState({ subject: 'Inbox placement test', body: '' })
   const [submitting, setSub]    = useState(false)
   const [error, setError]       = useState('')
@@ -105,6 +107,7 @@ export default function InboxPlacementPage() {
     setError('')
     try {
       const { data } = await api.post('/deliverability/inbox-placement/', form)
+      if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining)
       setTests((prev) => [data, ...prev])
       setSelected(data)
     } catch (err) {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../../services/api'
+import { useAuthStore } from '../../store/authStore'
 
 const STATUS_STYLES = {
   valid:   'bg-emerald-500/10 border-emerald-500/20 text-emerald-300',
@@ -41,6 +42,7 @@ function CopyButton({ text }) {
 }
 
 export default function EmailFinderPage() {
+  const { setCredits } = useAuthStore()
   const [form, setForm]       = useState({ first_name: '', last_name: '', domain: '' })
   const [loading, setLoading] = useState(false)
   const [result, setResult]   = useState(null)
@@ -61,6 +63,7 @@ export default function EmailFinderPage() {
     try {
       const { data } = await api.post('/verify/find-email/', form)
       setResult(data)
+      if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining)
     } catch (err) {
       const detail = err.response?.data?.detail
       setError(detail || 'Search failed. Please try again.')

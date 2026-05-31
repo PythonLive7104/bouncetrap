@@ -59,7 +59,7 @@ const PLANS = [
     monthlyPrice: 20,
     monthlyCredits: 25_000,
     features: [
-      '25,000 credits / month',
+      '25,000 credits',
       'Single + bulk verification',
       'Full API access',
       'Up to 5,000 emails per job',
@@ -74,7 +74,7 @@ const PLANS = [
     monthlyPrice: 70,
     monthlyCredits: 100_000,
     features: [
-      '100,000 credits / month',
+      '100,000 credits',
       'Everything in Starter',
       'Up to 50,000 emails per job',
       'Deliverability tools',
@@ -89,7 +89,7 @@ const PLANS = [
     monthlyPrice: 110,
     monthlyCredits: 200_000,
     features: [
-      '200,000 credits / month',
+      '200,000 credits',
       'Everything in Growth',
       'Up to 500,000 emails per job',
       'Dedicated account manager',
@@ -149,7 +149,7 @@ function PlanCard({ plan, isCurrent, isYearly, onUpgrade, isUpgrading }) {
           <div>
             <div className="flex items-baseline gap-1">
               <span className="text-3xl font-bold text-white">${price}</span>
-              <span className="text-slate-500 text-sm">/{isYearly ? 'year' : 'month'}</span>
+              {isYearly && <span className="text-slate-500 text-sm">/year</span>}
             </div>
             {isYearly && savings > 0 && (
               <p className="text-xs text-emerald-400 font-medium mt-0.5">Save ${savings}/yr vs. monthly</p>
@@ -160,7 +160,7 @@ function PlanCard({ plan, isCurrent, isYearly, onUpgrade, isUpgrading }) {
           </div>
         )}
         <p className="text-xs text-slate-500 mt-1.5">
-          {credits.toLocaleString()} credits{isYearly && plan.monthlyPrice > 0 ? '/year' : '/month'}
+          {credits.toLocaleString()} credits{isYearly && plan.monthlyPrice > 0 ? '/year' : ''}
         </p>
       </div>
 

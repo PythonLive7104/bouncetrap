@@ -372,7 +372,7 @@ class InboxPlacementView(APIView):
 
         # Deduct credits
         try:
-            deduct_credits(request.user.pk, INBOX_PLACEMENT_COST, operation='used', reference='inbox_placement')
+            credits_remaining = deduct_credits(request.user.pk, INBOX_PLACEMENT_COST, operation='used', reference='inbox_placement')
         except SubscriptionExpired:
             return Response(
                 {'detail': 'Your subscription has expired. Renew your plan to unlock your credits.'},
@@ -404,7 +404,9 @@ class InboxPlacementView(APIView):
         test.celery_task_id = task.id
         test.save(update_fields=['celery_task_id'])
 
-        return Response(_serialize_test(test), status=status.HTTP_202_ACCEPTED)
+        result = _serialize_test(test)
+        result['credits_remaining'] = credits_remaining
+        return Response(result, status=status.HTTP_202_ACCEPTED)
 
     def get(self, request, pk=None):
         from .models import InboxPlacementTest

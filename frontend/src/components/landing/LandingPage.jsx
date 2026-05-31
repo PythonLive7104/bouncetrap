@@ -67,21 +67,21 @@ const PAID_PLANS = [
     name: 'Starter',
     monthlyPrice: 20,
     monthlyCredits: 25_000,
-    features: ['25,000 credits / month', 'Bulk up to 5,000 rows', 'Full API access', 'CSV download', 'Email support'],
+    features: ['25,000 credits', 'Bulk up to 5,000 rows', 'Full API access', 'CSV download', 'Email support'],
     highlight: false,
   },
   {
     name: 'Growth',
     monthlyPrice: 70,
     monthlyCredits: 100_000,
-    features: ['100,000 credits / month', 'Bulk up to 50,000 rows', 'Deliverability tools', 'Priority support', 'All Starter features'],
+    features: ['100,000 credits', 'Bulk up to 50,000 rows', 'Deliverability tools', 'Priority support', 'All Starter features'],
     highlight: true,
   },
   {
     name: 'Pro',
     monthlyPrice: 110,
     monthlyCredits: 200_000,
-    features: ['200,000 credits / month', 'Bulk up to 500,000 rows', 'Dedicated support', 'All Growth features', 'Custom integrations'],
+    features: ['200,000 credits', 'Bulk up to 500,000 rows', 'Dedicated support', 'All Growth features', 'Custom integrations'],
     highlight: false,
   },
 ]
@@ -679,12 +679,12 @@ export default function LandingPage() {
                     <p className={`text-sm font-semibold mb-3 ${highlight ? 'text-brand-200' : 'text-slate-400'}`}>{name}</p>
                     <div className="flex items-end gap-1 mb-1">
                       <span className="text-4xl font-extrabold text-white">${displayPrice}</span>
-                      <span className={`pb-1 text-sm ${highlight ? 'text-brand-200' : 'text-slate-400'}`}>
-                        {isYearly ? '/year' : '/mo'}
-                      </span>
+                      {isYearly && (
+                        <span className={`pb-1 text-sm ${highlight ? 'text-brand-200' : 'text-slate-400'}`}>/year</span>
+                      )}
                     </div>
                     <p className={`text-sm mb-1 ${highlight ? 'text-brand-200' : 'text-slate-500'}`}>
-                      {fmt(displayCredits)} credits{isYearly ? '/year' : '/mo'}
+                      {fmt(displayCredits)} credits{isYearly ? '/year' : ''}
                     </p>
                     {isYearly && (
                       <span className={`inline-flex items-center gap-1 mb-3 text-xs font-semibold px-2 py-0.5 rounded-full w-fit ${
