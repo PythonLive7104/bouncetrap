@@ -3,6 +3,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import APIKey
+from apps.billing.models import CreditLedger
 
 User = get_user_model()
 
@@ -31,6 +32,18 @@ class RegisterSerializer(serializers.ModelSerializer):
             full_name = validated_data.get('full_name', ''),
             password  = validated_data['password'],
         )
+
+        # Record the initial free credit grant in the ledger so the full
+        # credit history is auditable from day one
+        CreditLedger.objects.create(
+            user          = user,
+            amount        = user.credits,
+            operation     = CreditLedger.OP_BONUS,
+            reference     = 'signup:free_grant',
+            balance_after = user.credits,
+            notes         = 'Free credits on account creation',
+        )
+
         if ref_code:
             try:
                 referrer = User.objects.get(referral_code=ref_code)

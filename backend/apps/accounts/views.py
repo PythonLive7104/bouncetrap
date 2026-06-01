@@ -12,6 +12,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import APIKey
+from apps.billing.models import CreditLedger
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
@@ -257,6 +258,11 @@ class GoogleSocialAuthView(APIView):
         if created:
             user.set_unusable_password()
             user.save(update_fields=['password'])
+            CreditLedger.objects.create(
+                user=user, amount=user.credits, operation=CreditLedger.OP_BONUS,
+                reference='signup:free_grant', balance_after=user.credits,
+                notes='Free credits on account creation',
+            )
 
         return _social_login_response(user)
 
@@ -328,6 +334,11 @@ class GitHubSocialAuthView(APIView):
         if created:
             user.set_unusable_password()
             user.save(update_fields=['password'])
+            CreditLedger.objects.create(
+                user=user, amount=user.credits, operation=CreditLedger.OP_BONUS,
+                reference='signup:free_grant', balance_after=user.credits,
+                notes='Free credits on account creation',
+            )
 
         return _social_login_response(user)
 
