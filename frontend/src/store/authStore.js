@@ -16,6 +16,8 @@ export const useAuthStore = create(
 
       setCredits: (credits) => set({ credits }),
 
+      setUser: (user) => set({ user }),
+
       setSubscription: (active, expiresAt) =>
         set({ subscriptionActive: active, subscriptionExpiresAt: expiresAt }),
 

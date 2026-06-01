@@ -58,6 +58,17 @@ class SingleVerifyView(APIView):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email'].lower()
 
+        # Block unverified users — prevents fake-email signups burning free credits
+        if not request.user.email_verified:
+            return Response(
+                {
+                    'detail': 'Please verify your email address before using credits. '
+                              'Check your inbox for the verification link.',
+                    'email_verified': False,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # Free plan: enforce daily verification limit
         if request.user.plan == 'free':
             used_today = _free_plan_daily_used(request.user)
@@ -128,6 +139,17 @@ class BulkUploadView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
+        # Block unverified users
+        if not request.user.email_verified:
+            return Response(
+                {
+                    'detail': 'Please verify your email address before uploading jobs. '
+                              'Check your inbox for the verification link.',
+                    'email_verified': False,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # Block free plan
         if request.user.plan == 'free':
             return Response(

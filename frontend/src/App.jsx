@@ -6,6 +6,7 @@ import LoginPage from './components/auth/LoginPage'
 import RegisterPage from './components/auth/RegisterPage'
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage'
 import GitHubCallbackPage from './components/auth/GitHubCallbackPage'
+import ConfirmEmailPage from './components/auth/ConfirmEmailPage'
 import DashboardLayout from './components/dashboard/DashboardLayout'
 import DashboardOverview from './components/dashboard/DashboardOverview'
 import VerifyEmailPage from './components/dashboard/VerifyEmailPage'
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/auth/github/callback" element={<GitHubCallbackPage />} />
+          <Route path="/verify-email" element={<ConfirmEmailPage />} />
           <Route
             path="/dashboard"
             element={

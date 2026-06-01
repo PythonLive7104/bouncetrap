@@ -1,3 +1,5 @@
+import hashlib
+import hmac as hmac_lib
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
@@ -28,6 +30,47 @@ from .serializers import (
 User = get_user_model()
 
 
+# ── Email verification helpers ────────────────────────────────────────────────
+
+def _make_email_token(user) -> str:
+    """
+    HMAC-SHA256 token tied to the user's pk, email, and date_joined.
+    Stable across logins (unlike default_token_generator which resets on login).
+    Invalidated only if the user's email or SECRET_KEY changes.
+    """
+    data = f"{user.pk}:{user.email}:{user.date_joined.timestamp()}"
+    return hmac_lib.new(
+        settings.SECRET_KEY.encode(),
+        data.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _check_email_token(user, token: str) -> bool:
+    expected = _make_email_token(user)
+    return hmac_lib.compare_digest(expected, token)
+
+
+def _send_verification_email(user) -> None:
+    uid   = urlsafe_base64_encode(force_bytes(user.pk))
+    token = _make_email_token(user)
+    frontend = getattr(settings, 'FRONTEND_URL', 'https://bouncetrap.net').rstrip('/')
+    verify_url = f'{frontend}/verify-email?uid={uid}&token={token}'
+    send_mail(
+        subject='Verify your BounceTrap email address',
+        message=(
+            f'Hi {user.full_name or user.email},\n\n'
+            f'Click the link below to verify your email and unlock your free credits:\n\n'
+            f'{verify_url}\n\n'
+            f'If you did not create a BounceTrap account, you can ignore this email.\n\n'
+            f'— The BounceTrap Team'
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=True,
+    )
+
+
 class RegisterView(generics.CreateAPIView):
     """FR-AUTH-01 — Register with email + password. Returns JWT tokens."""
     serializer_class = RegisterSerializer
@@ -37,6 +80,7 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        _send_verification_email(user)
 
         refresh = RefreshToken.for_user(user)
         return Response(
@@ -143,6 +187,42 @@ class PasswordResetConfirmView(APIView):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({'detail': 'Password has been reset.'})
+
+
+# ── Email verification ────────────────────────────────────────────────────
+
+class EmailVerifyView(APIView):
+    """POST /api/v1/auth/verify-email/  — confirm email with uid + token from link."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        uid   = request.data.get('uid', '')
+        token = request.data.get('token', '')
+        try:
+            user_pk = force_str(urlsafe_base64_decode(uid))
+            user    = User.objects.get(pk=user_pk)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return Response({'detail': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user.email_verified:
+            return Response({'detail': 'Email already verified.'})
+
+        if not _check_email_token(user, token):
+            return Response({'detail': 'Invalid or expired verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.email_verified = True
+        user.save(update_fields=['email_verified'])
+        return Response({'detail': 'Email verified. You can now use your credits.', 'email_verified': True})
+
+
+class ResendVerificationView(APIView):
+    """POST /api/v1/auth/resend-verification/  — resend the verification email."""
+
+    def post(self, request):
+        if request.user.email_verified:
+            return Response({'detail': 'Email is already verified.'})
+        _send_verification_email(request.user)
+        return Response({'detail': 'Verification email sent. Please check your inbox.'})
 
 
 # ── API Key management (FR-AUTH-06) ───────────────────────────────────────

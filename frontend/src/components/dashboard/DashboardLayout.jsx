@@ -1,6 +1,45 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import api from '../../services/api'
+
+function EmailVerificationBanner({ user, setUser }) {
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]       = useState(false)
+
+  if (!user || user.email_verified) return null
+
+  async function handleResend() {
+    setSending(true)
+    try {
+      await api.post('/auth/resend-verification/')
+      setSent(true)
+    } catch {}
+    finally { setSending(false) }
+  }
+
+  return (
+    <div className="mx-4 md:mx-8 mt-6 px-5 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3">
+      <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+      <div className="flex-1 min-w-0">
+        <p className="text-amber-300 font-semibold text-sm">Verify your email to use credits</p>
+        <p className="text-amber-400/70 text-xs mt-0.5">
+          We sent a verification link to <span className="text-amber-300 font-medium">{user.email}</span>.
+          Check your inbox (and spam folder).
+        </p>
+      </div>
+      <button
+        onClick={handleResend}
+        disabled={sending || sent}
+        className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/15 disabled:opacity-50 transition-colors whitespace-nowrap"
+      >
+        {sending ? 'Sending…' : sent ? 'Sent ✓' : 'Resend email'}
+      </button>
+    </div>
+  )
+}
 
 function SubscriptionBanner({ active, expiresAt, plan }) {
   if (!plan || plan === 'free') return null
@@ -251,7 +290,7 @@ function SidebarContent({ user, credits, onNavClick, onLogout }) {
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, credits, logout, subscriptionActive, subscriptionExpiresAt } = useAuthStore()
+  const { user, credits, logout, subscriptionActive, subscriptionExpiresAt, setUser } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const pageTitle = PAGE_TITLE[location.pathname] || 'Dashboard'
@@ -315,6 +354,7 @@ export default function DashboardLayout() {
           </div>
         </header>
 
+        <EmailVerificationBanner user={user} setUser={setUser} />
         <SubscriptionBanner
           active={subscriptionActive}
           expiresAt={subscriptionExpiresAt}

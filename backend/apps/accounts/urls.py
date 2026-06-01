@@ -27,4 +27,8 @@ urlpatterns = [
     # Social login
     path('social/google/',          views.GoogleSocialAuthView.as_view(),      name='auth-social-google'),
     path('social/github/',          views.GitHubSocialAuthView.as_view(),      name='auth-social-github'),
+
+    # Email verification
+    path('verify-email/',           views.EmailVerifyView.as_view(),           name='auth-verify-email'),
+    path('resend-verification/',    views.ResendVerificationView.as_view(),     name='auth-resend-verification'),
 ]
