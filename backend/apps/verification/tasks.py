@@ -268,6 +268,11 @@ def process_bulk_job(self, job_id: str, start_index: int = 0):
         if result.deep_check_used:
             deep_checks_made += 1
 
+        # Update progress after every email so the UI reflects real-time progress
+        # (batch saves only happen every BATCH_SIZE emails, which misses small jobs entirely)
+        job.processed_count = start_index + i + 1
+        job.save(update_fields=['processed_count'])
+
         results_to_create.append(VerificationResult(
             job             = job,
             user            = user,
@@ -333,7 +338,15 @@ def _write_result_csv(job: BulkJob, emails: list[str]) -> str:
     os.makedirs(result_dir, exist_ok=True)
     result_path = os.path.join(result_dir, f'job_{job.pk}.csv')
 
-    results = {r.email: r for r in job.results.all()}
+    # Build a lookup from flat values — avoids loading full ORM objects into memory
+    results = {
+        row['email']: row
+        for row in job.results.values(
+            'email', 'status', 'sub_status', 'score',
+            'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
+            'mx_found', 'smtp_valid', 'mx_record', 'domain',
+        ).iterator(chunk_size=500)
+    }
 
     with open(result_path, 'w', newline='', encoding='utf-8') as fh:
         writer = csv.DictWriter(fh, fieldnames=[
@@ -345,19 +358,6 @@ def _write_result_csv(job: BulkJob, emails: list[str]) -> str:
         for email in emails:
             r = results.get(email)
             if r:
-                writer.writerow({
-                    'email':         r.email,
-                    'status':        r.status,
-                    'sub_status':    r.sub_status,
-                    'score':         r.score,
-                    'is_disposable': r.is_disposable,
-                    'is_role_based': r.is_role_based,
-                    'is_catch_all':  r.is_catch_all,
-                    'is_free_email': r.is_free_email,
-                    'mx_found':      r.mx_found,
-                    'smtp_valid':    r.smtp_valid,
-                    'mx_record':     r.mx_record,
-                    'domain':        r.domain,
-                })
+                writer.writerow(r)
 
     return result_path

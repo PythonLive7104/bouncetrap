@@ -181,6 +181,11 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_ROUTES = {
     'apps.verification.tasks.*': {'queue': 'verification'},
 }
+# Redis re-queues a task whose message remains unacknowledged beyond visibility_timeout.
+# Bulk jobs can take several hours (2 000 emails × ~5 s/email ≈ 2.8 h), so we set
+# visibility_timeout to 12 h to prevent the broker from starting a second worker on
+# the same job while the first is still running.
+CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 43200}
 
 # ── Storage ───────────────────────────────────────────────────────────────
 MEDIA_URL  = '/media/'

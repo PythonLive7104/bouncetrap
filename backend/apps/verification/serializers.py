@@ -44,6 +44,6 @@ class BulkUploadSerializer(serializers.Serializer):
         name = value.name.lower()
         if not any(name.endswith(ext) for ext in allowed):
             raise serializers.ValidationError('Only .csv and .txt files are accepted.')
-        if value.size > 50 * 1024 * 1024:  # 50 MB (NFR)
-            raise serializers.ValidationError('File exceeds the 50 MB size limit.')
+        if value.size > 100 * 1024 * 1024:  # 100 MB
+            raise serializers.ValidationError('File exceeds the 100 MB size limit.')
         return value
