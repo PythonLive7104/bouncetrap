@@ -83,11 +83,15 @@ const STATUS_ROW = {
 }
 
 export default function VerifyEmailPage() {
-  const { credits, setCredits } = useAuthStore()
+  const { credits, setCredits, user } = useAuthStore()
+  const isFree = user?.plan === 'free'
   const [email, setEmail]           = useState('')
   const [result, setResult]         = useState(null)
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
+  const [dailyLimitHit, setDailyLimitHit] = useState(false)
+  const [dailyUsed, setDailyUsed]   = useState(0)
+  const [dailyLimit, setDailyLimit] = useState(20)
   const [showExpiredModal, setShowExpiredModal] = useState(false)
   const [history, setHistory]       = useState([])
   const [historyLoading, setHistoryLoading] = useState(true)
@@ -105,18 +109,25 @@ export default function VerifyEmailPage() {
     setLoading(true)
     setError('')
     setResult(null)
+    setDailyLimitHit(false)
     try {
       const { data } = await api.post('/verify/single/', { email: email.trim() })
       setResult(data)
       if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining)
       else setCredits(Math.max(0, credits - 1))
-      // Prepend to history
+      if (typeof data.daily_used === 'number') setDailyUsed(data.daily_used)
+      if (typeof data.daily_limit === 'number') setDailyLimit(data.daily_limit)
       setHistory((prev) => [
         { email: data.email, status: data.status, score: data.score, created_at: new Date().toISOString() },
         ...prev,
       ].slice(0, 10))
     } catch (err) {
-      if (err.response?.status === 402 && err.response?.data?.detail?.includes('subscription')) {
+      if (err.response?.status === 429) {
+        setDailyLimitHit(true)
+        const d = err.response.data
+        if (typeof d.daily_used  === 'number') setDailyUsed(d.daily_used)
+        if (typeof d.daily_limit === 'number') setDailyLimit(d.daily_limit)
+      } else if (err.response?.status === 402 && err.response?.data?.detail?.includes('subscription')) {
         setShowExpiredModal(true)
       } else {
         setError(err.response?.data?.detail || 'Verification failed. Please try again.')
@@ -136,6 +147,29 @@ export default function VerifyEmailPage() {
         <p className="text-sm text-slate-400 mt-1">Full verification pipeline with real-time deliverability check. Costs 1 credit.</p>
       </div>
 
+      {/* Free plan daily usage bar */}
+      {isFree && (
+        <div className="rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3">
+          <div className="flex items-center justify-between text-xs mb-2">
+            <span className="text-slate-400 font-medium">Daily free verifications</span>
+            <span className="text-slate-400">
+              <span className={dailyUsed >= dailyLimit ? 'text-red-400 font-semibold' : 'text-white font-semibold'}>{dailyUsed}</span>
+              <span className="text-slate-600"> / {dailyLimit}</span>
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-white/8">
+            <div
+              className={`h-1.5 rounded-full transition-all duration-500 ${dailyUsed >= dailyLimit ? 'bg-red-500' : 'bg-brand-500'}`}
+              style={{ width: `${Math.min((dailyUsed / dailyLimit) * 100, 100)}%` }}
+            />
+          </div>
+          {dailyUsed >= dailyLimit
+            ? <p className="text-xs text-slate-500 mt-1.5">Resets at midnight · <a href="/dashboard/billing" className="text-brand-400 hover:underline">Upgrade for more</a></p>
+            : <p className="text-xs text-slate-600 mt-1.5">{dailyLimit - dailyUsed} remaining today · Resets at midnight</p>
+          }
+        </div>
+      )}
+
       {/* Input */}
       <form onSubmit={handleVerify} className="flex gap-3">
         <input
@@ -147,7 +181,7 @@ export default function VerifyEmailPage() {
         />
         <button
           type="submit"
-          disabled={loading || !email.trim()}
+          disabled={loading || !email.trim() || (isFree && dailyUsed >= dailyLimit)}
           className="px-6 py-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all text-sm whitespace-nowrap"
         >
           {loading ? (
@@ -161,6 +195,23 @@ export default function VerifyEmailPage() {
           ) : 'Verify'}
         </button>
       </form>
+
+      {/* Daily limit upsell banner */}
+      {dailyLimitHit && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+          <p className="text-amber-300 font-semibold text-sm mb-1">Daily limit reached</p>
+          <p className="text-slate-400 text-sm mb-3">
+            Free plan includes {dailyLimit} verifications per day. Upgrade to Starter for 5,000/month,
+            bulk upload, and full API access.
+          </p>
+          <a
+            href="/dashboard/billing"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            View plans →
+          </a>
+        </div>
+      )}
 
       {error && (
         <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>

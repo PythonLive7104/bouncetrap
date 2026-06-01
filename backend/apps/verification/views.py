@@ -22,7 +22,10 @@ from .serializers import (
 from .services.verifier import verify_email
 from .tasks import process_bulk_job
 from apps.billing.credits import deduct_credits, InsufficientCredits, SubscriptionExpired
+from apps.billing.models import CreditLedger
 
+
+FREE_PLAN_DAILY_LIMIT = 20  # verifications per day for free plan users
 
 PLAN_ROW_LIMITS = {
     'free':       0,        # no bulk on free plan
@@ -31,6 +34,16 @@ PLAN_ROW_LIMITS = {
     'pro':        500_000,
     'enterprise': 500_000,
 }
+
+
+def _free_plan_daily_used(user) -> int:
+    """Return credits used today by a free-plan user (counts ledger 'used' entries for today)."""
+    result = CreditLedger.objects.filter(
+        user=user,
+        operation=CreditLedger.OP_USED,
+        created_at__date=timezone.now().date(),
+    ).aggregate(total=Sum('amount'))['total']
+    return abs(result or 0)
 
 
 class SingleVerifyView(APIView):
@@ -44,6 +57,24 @@ class SingleVerifyView(APIView):
         serializer = SingleVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email'].lower()
+
+        # Free plan: enforce daily verification limit
+        if request.user.plan == 'free':
+            used_today = _free_plan_daily_used(request.user)
+            if used_today >= FREE_PLAN_DAILY_LIMIT:
+                return Response(
+                    {
+                        'detail': (
+                            f'You have reached your free plan limit of {FREE_PLAN_DAILY_LIMIT} '
+                            f'verifications per day. Upgrade to Starter to unlock 5,000 '
+                            f'verifications per month, bulk upload, and full API access.'
+                        ),
+                        'daily_limit':  FREE_PLAN_DAILY_LIMIT,
+                        'daily_used':   used_today,
+                        'upgrade_url':  '/dashboard/billing',
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
 
         # Deduct 1 credit
         try:
@@ -83,6 +114,9 @@ class SingleVerifyView(APIView):
 
         data = result.to_dict()
         data['credits_remaining'] = credits_remaining
+        if request.user.plan == 'free':
+            data['daily_used']  = _free_plan_daily_used(request.user)
+            data['daily_limit'] = FREE_PLAN_DAILY_LIMIT
         return Response(data, status=status.HTTP_200_OK)
 
 
