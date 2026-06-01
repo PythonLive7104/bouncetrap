@@ -83,6 +83,10 @@ def _read_emails_from_file(file_path: str, email_column: str = '') -> list[str]:
     except FileNotFoundError:
         return []
 
+    # Strip NUL bytes — files encoded as UTF-16/binary often contain \x00 padding
+    # which PostgreSQL rejects with "string literal cannot contain NUL characters"
+    content = content.replace('\x00', '')
+
     emails = []
     if file_path.lower().endswith('.csv'):
         reader = csv.DictReader(io.StringIO(content))
@@ -165,6 +169,24 @@ def process_bulk_job(self, job_id: str, start_index: int = 0):
     job.status = BulkJob.STATUS_PROCESSING
     job.save(update_fields=['status'])
 
+    try:
+        _run_bulk_job(self, job, job_id, start_index)
+    except Exception as exc:
+        logger.exception('BulkJob %s failed with unexpected error: %s', job_id, exc)
+        try:
+            job.refresh_from_db(fields=['status'])
+            if job.status == BulkJob.STATUS_PROCESSING:
+                job.status        = BulkJob.STATUS_FAILED
+                job.error_message = f'Unexpected error: {exc}'
+                job.completed_at  = timezone.now()
+                job.save(update_fields=['status', 'error_message', 'completed_at'])
+        except Exception:
+            pass
+        raise
+
+
+def _run_bulk_job(task, job, job_id: str, start_index: int):
+    """Inner implementation — separated so the outer task can catch all exceptions."""
     user     = job.user
     plan_max = MAX_ROWS.get(user.plan, 0)
 
