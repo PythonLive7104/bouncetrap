@@ -329,7 +329,7 @@ def _write_result_csv(job: BulkJob, emails: list[str]) -> str:
     from django.conf import settings
     import os
 
-    result_dir = os.path.join(settings.MEDIA_ROOT, 'results') if not settings.USE_S3 else '/tmp'
+    result_dir = os.path.join(settings.MEDIA_ROOT, 'results')
     os.makedirs(result_dir, exist_ok=True)
     result_path = os.path.join(result_dir, f'job_{job.pk}.csv')
 
