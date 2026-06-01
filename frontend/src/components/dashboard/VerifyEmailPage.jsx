@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 import SubscriptionExpiredModal from './SubscriptionExpiredModal'
@@ -85,10 +86,13 @@ const STATUS_ROW = {
 export default function VerifyEmailPage() {
   const { credits, setCredits, user } = useAuthStore()
   const isFree = user?.plan === 'free'
-  const [email, setEmail]           = useState('')
-  const [result, setResult]         = useState(null)
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState('')
+  const [email, setEmail]               = useState('')
+  const [result, setResult]             = useState(null)
+  const [loading, setLoading]           = useState(false)
+  const [error, setError]               = useState('')
+  const [emailUnverified, setEmailUnverified] = useState(false)
+  const [resendSent, setResendSent]     = useState(false)
+  const [resending, setResending]       = useState(false)
   const [dailyLimitHit, setDailyLimitHit] = useState(false)
   const [dailyUsed, setDailyUsed]   = useState(0)
   const [dailyLimit, setDailyLimit] = useState(20)
@@ -110,6 +114,7 @@ export default function VerifyEmailPage() {
     setError('')
     setResult(null)
     setDailyLimitHit(false)
+    setEmailUnverified(false)
     try {
       const { data } = await api.post('/verify/single/', { email: email.trim() })
       setResult(data)
@@ -122,7 +127,9 @@ export default function VerifyEmailPage() {
         ...prev,
       ].slice(0, 10))
     } catch (err) {
-      if (err.response?.status === 429) {
+      if (err.response?.status === 403 && err.response?.data?.email_verified === false) {
+        setEmailUnverified(true)
+      } else if (err.response?.status === 429) {
         setDailyLimitHit(true)
         const d = err.response.data
         if (typeof d.daily_used  === 'number') setDailyUsed(d.daily_used)
@@ -137,6 +144,15 @@ export default function VerifyEmailPage() {
     }
   }
 
+  async function handleResendVerification() {
+    setResending(true)
+    try {
+      await api.post('/auth/resend-verification/')
+      setResendSent(true)
+    } catch {}
+    finally { setResending(false) }
+  }
+
   const cfg = result ? (STATUS_CONFIG[result.status] || STATUS_CONFIG.unknown) : null
 
   return (
@@ -146,6 +162,29 @@ export default function VerifyEmailPage() {
         <h2 className="text-xl font-bold text-white">Verify Email Address</h2>
         <p className="text-sm text-slate-400 mt-1">Full verification pipeline with real-time deliverability check. Costs 1 credit.</p>
       </div>
+
+      {/* Email not verified — shown for pre-existing users and new signups who haven't clicked the link yet */}
+      {(emailUnverified || (user && !user.email_verified)) && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+          <p className="text-amber-300 font-semibold text-sm mb-1">Email verification required</p>
+          <p className="text-slate-400 text-sm mb-3">
+            You need to verify <span className="text-white font-medium">{user?.email}</span> before
+            using credits. Check your inbox for the verification link, or request a new one.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleResendVerification}
+              disabled={resending || resendSent}
+              className="text-sm px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
+            >
+              {resending ? 'Sending…' : resendSent ? 'Email sent ✓' : 'Resend verification email'}
+            </button>
+            {resendSent && (
+              <span className="text-xs text-slate-500">Check your inbox and spam folder</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Free plan daily usage bar */}
       {isFree && (
