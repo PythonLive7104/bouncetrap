@@ -9,6 +9,8 @@ import io
 import json
 import logging
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from celery import shared_task
@@ -20,7 +22,8 @@ from apps.billing.credits import deduct_credits, InsufficientCredits
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-BATCH_SIZE = 50   # process in batches to allow progress updates
+BATCH_SIZE    = 50   # DB bulk_create + credit deduction interval
+THREAD_WORKERS = 10  # Emails verified in parallel per job
 
 
 def _compute_health(total: int, valid: int, invalid: int, risky: int, unknown: int):
@@ -221,106 +224,115 @@ def _run_bulk_job(task, job, job_id: str, start_index: int):
     # Slice to unprocessed emails when resuming
     emails = all_emails[start_index:]
 
-    # -- Process in batches --
+    # -- Process in parallel chunks --
     # Carry over counts from previous run when resuming
-    valid_count   = job.valid_count
-    invalid_count = job.invalid_count
-    risky_count   = job.risky_count
-    unknown_count = job.unknown_count
+    valid_count      = job.valid_count
+    invalid_count    = job.invalid_count
+    risky_count      = job.risky_count
+    unknown_count    = job.unknown_count
     deep_checks_made = job.deep_checks_made
     results_to_create = []
+    verifier = partial(verify_email, plan=user.plan)
 
-    for i, email in enumerate(emails):
-        if i > 0 and i % BATCH_SIZE == 0:
-            # Bulk-save the batch and flush
+    chunk_offset = 0
+    while chunk_offset < len(emails):
+        chunk = emails[chunk_offset:chunk_offset + THREAD_WORKERS]
+
+        # Verify the chunk in parallel — DNS + HTTP calls are I/O-bound so threads help
+        with ThreadPoolExecutor(max_workers=len(chunk)) as executor:
+            futures = {executor.submit(verifier, email): email for email in chunk}
+            chunk_results = []
+            for future in as_completed(futures):
+                try:
+                    chunk_results.append(future.result())
+                except Exception as exc:
+                    # Single-email failure — log and treat as unknown so the job continues
+                    email = futures[future]
+                    logger.warning('Verification error for %s: %s', email, exc)
+                    from .services.verifier import VerificationResult as VR
+                    fallback = VR(email=email, status='unknown', sub_status='verification_error')
+                    chunk_results.append(fallback)
+
+        for result in chunk_results:
+            if result.status == 'valid':     valid_count   += 1
+            elif result.status == 'invalid': invalid_count += 1
+            elif result.status == 'risky':   risky_count   += 1
+            else:                            unknown_count += 1
+
+            if result.deep_check_used:
+                deep_checks_made += 1
+
+            results_to_create.append(VerificationResult(
+                job             = job,
+                user            = user,
+                email           = result.email,
+                domain          = result.domain,
+                status          = result.status,
+                sub_status      = result.sub_status,
+                score           = result.score,
+                is_disposable   = result.is_disposable,
+                is_role_based   = result.is_role_based,
+                is_catch_all    = result.is_catch_all,
+                is_free_email   = result.is_free_email,
+                mx_found        = result.mx_found,
+                smtp_valid      = result.smtp_valid,
+                mx_record       = result.mx_record or '',
+                deep_check_used = result.deep_check_used,
+                esp             = result.esp or '',
+                elv_code        = result.elv_code or '',
+            ))
+
+        chunk_offset += len(chunk)
+        processed_so_far = start_index + chunk_offset
+
+        # Update progress after every chunk so the UI stays current
+        job.processed_count = processed_so_far
+        job.save(update_fields=['processed_count'])
+
+        # Every BATCH_SIZE emails: flush to DB, deduct credits, check for pause
+        if len(results_to_create) >= BATCH_SIZE:
             VerificationResult.objects.bulk_create(results_to_create, ignore_conflicts=True)
+            credits_batch = len(results_to_create)
             results_to_create = []
 
-            # Deduct credits for processed batch
             try:
-                deduct_credits(
-                    user.pk,
-                    BATCH_SIZE,
-                    operation='used',
-                    reference=f'bulk:{job_id}',
-                )
+                deduct_credits(user.pk, credits_batch, operation='used', reference=f'bulk:{job_id}')
             except InsufficientCredits:
-                # Stop processing — out of credits mid-job
-                job.status        = BulkJob.STATUS_FAILED
-                job.error_message = 'Ran out of credits during processing.'
-                job.processed_count = start_index + i
-                job.valid_count   = valid_count
-                job.invalid_count = invalid_count
-                job.risky_count   = risky_count
-                job.unknown_count = unknown_count
-                job.credits_used  = start_index + i
+                job.status           = BulkJob.STATUS_FAILED
+                job.error_message    = 'Ran out of credits during processing.'
+                job.processed_count  = processed_so_far
+                job.valid_count      = valid_count
+                job.invalid_count    = invalid_count
+                job.risky_count      = risky_count
+                job.unknown_count    = unknown_count
+                job.credits_used     = processed_so_far
                 job.deep_checks_made = deep_checks_made
-                job.completed_at  = timezone.now()
+                job.completed_at     = timezone.now()
                 job.save()
                 return
 
-            # Update progress counter (FR-BULK-05)
-            job.processed_count  = start_index + i
             job.valid_count      = valid_count
             job.invalid_count    = invalid_count
             job.risky_count      = risky_count
             job.unknown_count    = unknown_count
-            job.credits_used     = start_index + i
+            job.credits_used     = processed_so_far
             job.deep_checks_made = deep_checks_made
             job.save(update_fields=[
-                'processed_count', 'valid_count', 'invalid_count',
-                'risky_count', 'unknown_count', 'credits_used', 'deep_checks_made',
+                'valid_count', 'invalid_count', 'risky_count',
+                'unknown_count', 'credits_used', 'deep_checks_made',
             ])
 
             # Check for pause request between batches
             current_status = BulkJob.objects.filter(pk=job_id).values_list('status', flat=True).first()
             if current_status == BulkJob.STATUS_PAUSED:
-                if results_to_create:
-                    VerificationResult.objects.bulk_create(results_to_create, ignore_conflicts=True)
-                logger.info('BulkJob %s paused at index %d', job_id, start_index + i)
+                logger.info('BulkJob %s paused at index %d', job_id, processed_so_far)
                 return
 
-        result = verify_email(email, plan=user.plan)
-
-        if result.status == 'valid':    valid_count   += 1
-        elif result.status == 'invalid': invalid_count += 1
-        elif result.status == 'risky':  risky_count   += 1
-        else:                           unknown_count += 1
-
-        if result.deep_check_used:
-            deep_checks_made += 1
-
-        # Update progress after every email so the UI reflects real-time progress
-        # (batch saves only happen every BATCH_SIZE emails, which misses small jobs entirely)
-        job.processed_count = start_index + i + 1
-        job.save(update_fields=['processed_count'])
-
-        results_to_create.append(VerificationResult(
-            job             = job,
-            user            = user,
-            email           = result.email,
-            domain          = result.domain,
-            status          = result.status,
-            sub_status      = result.sub_status,
-            score           = result.score,
-            is_disposable   = result.is_disposable,
-            is_role_based   = result.is_role_based,
-            is_catch_all    = result.is_catch_all,
-            is_free_email   = result.is_free_email,
-            mx_found        = result.mx_found,
-            smtp_valid      = result.smtp_valid,
-            mx_record       = result.mx_record or '',
-            deep_check_used = result.deep_check_used,
-            esp             = result.esp or '',
-            elv_code        = result.elv_code or '',
-        ))
-
-    # Save remaining batch
+    # Save any remaining results
     if results_to_create:
         VerificationResult.objects.bulk_create(results_to_create, ignore_conflicts=True)
-        remainder = len(results_to_create)
         try:
-            deduct_credits(user.pk, remainder, operation='used', reference=f'bulk:{job_id}')
+            deduct_credits(user.pk, len(results_to_create), operation='used', reference=f'bulk:{job_id}')
         except InsufficientCredits:
             pass
 
