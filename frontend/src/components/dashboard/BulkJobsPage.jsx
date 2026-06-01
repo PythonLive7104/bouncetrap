@@ -160,115 +160,129 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadReport
   const unknown = job.unknown_count || 0
   const validPct = total > 0 ? Math.round((valid / total) * 100) : 0
 
-  return (
-    <div className="px-6 py-5 hover:bg-white/[0.015] transition-colors">
-      <div className="flex items-start justify-between gap-4">
-        {/* Left: name + status + progress */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  const ActionButtons = () => (
+    <>
+      {isActive && (
+        <>
+          <button onClick={() => onPause(job.id)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:text-amber-400 hover:border-amber-500/30 transition-colors">
+            Pause
+          </button>
+          <button onClick={() => onCancel(job.id)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-colors">
+            Cancel
+          </button>
+        </>
+      )}
+      {isPaused && (
+        <>
+          <button onClick={() => onResume(job.id)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors font-medium">
+            Resume
+          </button>
+          <button onClick={() => onCancel(job.id)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-colors">
+            Cancel
+          </button>
+        </>
+      )}
+      {isDone && (
+        <>
+          {canReport && (
+            <button onClick={() => onDownloadReport(job.id)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:text-white hover:border-white/20 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-            </div>
-            <div className="min-w-0">
-              <p className="text-white text-sm font-semibold truncate">{job.filename}</p>
-              <p className="text-slate-600 text-xs">{new Date(job.created_at).toLocaleString()}</p>
-            </div>
+              PDF Report
+            </button>
+          )}
+          <button onClick={() => onDownload(job.id)}
+            className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors shadow-sm">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download CSV
+          </button>
+        </>
+      )}
+    </>
+  )
+
+  return (
+    <div className="px-4 sm:px-6 py-4 sm:py-5 hover:bg-white/[0.015] transition-colors">
+
+      {/* Header row: icon + name/date + badges (desktop: actions inline right) */}
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0 mt-0.5">
+          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Filename + date */}
+          <p className="text-white text-sm font-semibold truncate">{job.filename}</p>
+          <p className="text-slate-600 text-xs mt-0.5">{new Date(job.created_at).toLocaleString()}</p>
+
+          {/* Badges on their own line so they never collide with filename */}
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <StatusBadge status={job.status} />
             {isDone && job.health_grade && <HealthBadge grade={job.health_grade} />}
           </div>
-
-          {(isActive || isPaused) && (
-            <div className="ml-11">
-              <ProgressBar processed={job.processed_count || 0} total={total} />
-            </div>
-          )}
-
-          {isDone && (
-            <div className="ml-11 mt-2.5">
-              {/* Result bar */}
-              {total > 0 && (
-                <div className="flex h-2 rounded-full overflow-hidden gap-0.5 mb-2.5">
-                  <div className="bg-emerald-500 rounded-l-full transition-all" style={{ width: `${Math.round(valid/total*100)}%` }} title={`${valid} valid`} />
-                  <div className="bg-red-500 transition-all" style={{ width: `${Math.round(invalid/total*100)}%` }} title={`${invalid} invalid`} />
-                  <div className="bg-amber-500 transition-all" style={{ width: `${Math.round(risky/total*100)}%` }} title={`${risky} risky`} />
-                  <div className="bg-slate-600 rounded-r-full transition-all" style={{ width: `${Math.round(unknown/total*100)}%` }} title={`${unknown} unknown`} />
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                <span className="text-slate-400 font-medium">{fmt(total)} total</span>
-                <span className="text-emerald-400">{fmt(valid)} valid <span className="text-slate-600">({validPct}%)</span></span>
-                <span className="text-red-400">{fmt(invalid)} invalid</span>
-                <span className="text-amber-400">{fmt(risky)} risky</span>
-                {unknown > 0 && <span className="text-slate-500">{fmt(unknown)} unknown</span>}
-              </div>
-              {/* Health advice */}
-              {job.health_advice?.length > 0 && (
-                <div className="mt-2 space-y-0.5">
-                  {job.health_advice.map((tip, i) => (
-                    <p key={i} className="text-xs text-slate-500 flex gap-1.5">
-                      <span className="text-slate-600 mt-0.5">→</span>{tip}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isFailed && job.error_message && (
-            <p className="ml-11 mt-1 text-xs text-red-400">{job.error_message}</p>
-          )}
         </div>
 
-        {/* Right: actions */}
-        <div className="flex items-center gap-2 shrink-0 pt-0.5">
-          {isActive && (
-            <>
-              <button onClick={() => onPause(job.id)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:text-amber-400 hover:border-amber-500/30 transition-colors">
-                Pause
-              </button>
-              <button onClick={() => onCancel(job.id)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-colors">
-                Cancel
-              </button>
-            </>
-          )}
-          {isPaused && (
-            <>
-              <button onClick={() => onResume(job.id)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors font-medium">
-                Resume
-              </button>
-              <button onClick={() => onCancel(job.id)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-colors">
-                Cancel
-              </button>
-            </>
-          )}
-          {isDone && (
-            <>
-              {canReport && (
-                <button onClick={() => onDownloadReport(job.id)}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:text-white hover:border-white/20 transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  PDF Report
-                </button>
-              )}
-              <button onClick={() => onDownload(job.id)}
-                className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors shadow-sm">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download CSV
-              </button>
-            </>
-          )}
+        {/* Actions — visible inline on sm+ screens only */}
+        <div className="hidden sm:flex items-center gap-2 shrink-0 pt-0.5">
+          <ActionButtons />
         </div>
       </div>
+
+      {/* Progress / results */}
+      <div className="ml-11">
+        {(isActive || isPaused) && (
+          <ProgressBar processed={job.processed_count || 0} total={total} />
+        )}
+
+        {isDone && (
+          <div className="mt-2.5">
+            {total > 0 && (
+              <div className="flex h-2 rounded-full overflow-hidden gap-0.5 mb-2.5">
+                <div className="bg-emerald-500 rounded-l-full transition-all" style={{ width: `${Math.round(valid/total*100)}%` }} title={`${valid} valid`} />
+                <div className="bg-red-500 transition-all" style={{ width: `${Math.round(invalid/total*100)}%` }} title={`${invalid} invalid`} />
+                <div className="bg-amber-500 transition-all" style={{ width: `${Math.round(risky/total*100)}%` }} title={`${risky} risky`} />
+                <div className="bg-slate-600 rounded-r-full transition-all" style={{ width: `${Math.round(unknown/total*100)}%` }} title={`${unknown} unknown`} />
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <span className="text-slate-400 font-medium">{fmt(total)} total</span>
+              <span className="text-emerald-400">{fmt(valid)} valid <span className="text-slate-600">({validPct}%)</span></span>
+              <span className="text-red-400">{fmt(invalid)} invalid</span>
+              <span className="text-amber-400">{fmt(risky)} risky</span>
+              {unknown > 0 && <span className="text-slate-500">{fmt(unknown)} unknown</span>}
+            </div>
+            {job.health_advice?.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                {job.health_advice.map((tip, i) => (
+                  <p key={i} className="text-xs text-slate-500 flex gap-1.5">
+                    <span className="text-slate-600 mt-0.5">→</span>{tip}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isFailed && job.error_message && (
+          <p className="mt-1 text-xs text-red-400">{job.error_message}</p>
+        )}
+      </div>
+
+      {/* Actions — full-width row on mobile only */}
+      <div className="flex sm:hidden items-center gap-2 mt-3 justify-end">
+        <ActionButtons />
+      </div>
+
     </div>
   )
 }
