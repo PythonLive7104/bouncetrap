@@ -248,12 +248,12 @@ def _run_bulk_job(task, job, job_id: str, start_index: int):
                 # Stop processing — out of credits mid-job
                 job.status        = BulkJob.STATUS_FAILED
                 job.error_message = 'Ran out of credits during processing.'
-                job.processed_count = i
+                job.processed_count = start_index + i
                 job.valid_count   = valid_count
                 job.invalid_count = invalid_count
                 job.risky_count   = risky_count
                 job.unknown_count = unknown_count
-                job.credits_used  = i
+                job.credits_used  = start_index + i
                 job.deep_checks_made = deep_checks_made
                 job.completed_at  = timezone.now()
                 job.save()
