@@ -322,8 +322,8 @@ class NowPaymentsWebhookView(APIView):
 
         logger.info('NOWPayments IPN: order=%s status=%s', order_id, payment_status)
 
-        if payment_status in ('confirmed', 'finished'):
-            self._confirm_invoice(order_id)
+        if payment_status in ('confirmed', 'finished', 'partially_paid'):
+            self._confirm_invoice(order_id, payment_status)
         elif payment_status in ('failed', 'refunded'):
             NowPaymentsInvoice.objects.filter(order_id=order_id).update(
                 status=NowPaymentsInvoice.STATUS_FAILED,
@@ -337,21 +337,42 @@ class NowPaymentsWebhookView(APIView):
 
         return Response(status=status.HTTP_200_OK)
 
-    def _confirm_invoice(self, order_id):
+    def _confirm_invoice(self, order_id, payment_status):
         from datetime import timedelta
         from django.db import transaction
+
+        # Map NOWPayments payment_status → our invoice status
+        INVOICE_STATUS_MAP = {
+            'finished':      NowPaymentsInvoice.STATUS_FINISHED,
+            'confirmed':     NowPaymentsInvoice.STATUS_CONFIRMED,
+            'partially_paid': NowPaymentsInvoice.STATUS_CONFIRMED,
+        }
+        new_invoice_status = INVOICE_STATUS_MAP.get(payment_status, NowPaymentsInvoice.STATUS_CONFIRMED)
 
         with transaction.atomic():
             try:
                 invoice = NowPaymentsInvoice.objects.select_for_update().get(
                     order_id=order_id,
-                    status=NowPaymentsInvoice.STATUS_WAITING,
+                    status__in=[
+                        NowPaymentsInvoice.STATUS_WAITING,
+                        NowPaymentsInvoice.STATUS_CONFIRMING,
+                    ],
                 )
             except NowPaymentsInvoice.DoesNotExist:
+                # Could be a duplicate IPN for an already-processed order (e.g. confirmed → finished).
+                # Safely upgrade status without re-crediting.
+                if payment_status == 'finished':
+                    updated = NowPaymentsInvoice.objects.filter(
+                        order_id=order_id,
+                        status=NowPaymentsInvoice.STATUS_CONFIRMED,
+                    ).update(status=NowPaymentsInvoice.STATUS_FINISHED, resolved_at=timezone.now())
+                    if updated:
+                        logger.info('NOWPayments IPN: order=%s upgraded to finished', order_id)
+                        return
                 logger.info('NOWPayments IPN: order=%s already processed or unknown', order_id)
                 return
 
-            invoice.status      = NowPaymentsInvoice.STATUS_CONFIRMED
+            invoice.status      = new_invoice_status
             invoice.resolved_at = timezone.now()
             invoice.save()
 
@@ -362,15 +383,17 @@ class NowPaymentsWebhookView(APIView):
                 user.save(update_fields=['credits'])
                 notes = f'Credit pack {invoice.plan} via crypto'
             else:
+                # Yearly plans get 365 days; monthly plans get 30 days
+                days = 365 if invoice.billing_period == 'yearly' else 30
                 user.plan = invoice.plan
                 now = timezone.now()
                 current_expiry = user.subscription_expires_at
                 if current_expiry and current_expiry > now:
-                    user.subscription_expires_at = current_expiry + timedelta(days=30)
+                    user.subscription_expires_at = current_expiry + timedelta(days=days)
                 else:
-                    user.subscription_expires_at = now + timedelta(days=30)
+                    user.subscription_expires_at = now + timedelta(days=days)
                 user.save(update_fields=['plan', 'credits', 'subscription_expires_at'])
-                notes = f'{invoice.plan} {invoice.billing_period} via crypto'
+                notes = f'{invoice.plan} {invoice.billing_period} via crypto ({payment_status})'
 
             CreditLedger.objects.create(
                 user          = user,
@@ -380,4 +403,7 @@ class NowPaymentsWebhookView(APIView):
                 balance_after = user.credits,
                 notes         = notes,
             )
-            logger.info('NOWPayments IPN: credited %d to user %s (order=%s)', invoice.credits_to_add, user.email, order_id)
+            logger.info(
+                'NOWPayments IPN: credited %d to user %s (order=%s status=%s)',
+                invoice.credits_to_add, user.email, order_id, payment_status,
+            )
