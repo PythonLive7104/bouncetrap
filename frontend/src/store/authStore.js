@@ -24,6 +24,10 @@ export const useAuthStore = create(
       logout: () =>
         set({ user: null, token: null, credits: 0, isAuthenticated: false, subscriptionActive: true, subscriptionExpiresAt: null }),
     }),
-    { name: 'bouncetr-auth' }
+    {
+      name: 'bouncetr-auth',
+      version: 2,   // bump this whenever a breaking store shape change is deployed
+      migrate: () => ({ user: null, token: null, credits: 0, isAuthenticated: false, subscriptionActive: true, subscriptionExpiresAt: null }),
+    }
   )
 )
