@@ -21,6 +21,9 @@ import EmailFinderPage from './components/dashboard/EmailFinderPage'
 import InboxPlacementPage from './components/dashboard/InboxPlacementPage'
 import TeamsPage from './components/dashboard/TeamsPage'
 import ReferralPage from './components/dashboard/ReferralPage'
+import SMTPTestingPage from './components/dashboard/SMTPTestingPage'
+import DomainReputationPage from './components/dashboard/DomainReputationPage'
+import AIAdvisorPage from './components/dashboard/AIAdvisorPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -63,6 +66,9 @@ export default function App() {
             <Route path="inbox-placement" element={<InboxPlacementPage />} />
             <Route path="teams" element={<TeamsPage />} />
             <Route path="referral" element={<ReferralPage />} />
+            <Route path="smtp-testing" element={<SMTPTestingPage />} />
+            <Route path="domain-reputation" element={<DomainReputationPage />} />
+            <Route path="ai-advisor" element={<AIAdvisorPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

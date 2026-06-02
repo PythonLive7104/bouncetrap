@@ -420,6 +420,318 @@ class InboxPlacementView(APIView):
         return Response(_serialize_test(test))
 
 
+# ── SMTP Testing ──────────────────────────────────────────────────────────
+
+class SMTPTestView(APIView):
+    """POST /api/v1/deliverability/smtp-test/ — Test an SMTP server's connectivity and configuration."""
+
+    def post(self, request):
+        import smtplib
+        import ssl
+        import socket
+
+        host = request.data.get('host', '').strip()
+        try:
+            port = int(request.data.get('port', 587))
+        except (ValueError, TypeError):
+            port = 587
+
+        if not host:
+            return Response({'detail': 'host is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        results = []
+        overall_pass = True
+
+        # ── Step 1: DNS resolution ────────────────────────────────────────
+        try:
+            ip = socket.gethostbyname(host)
+            results.append({'test': 'DNS Resolution', 'status': 'pass', 'detail': f'Resolved to {ip}'})
+        except socket.gaierror as e:
+            results.append({'test': 'DNS Resolution', 'status': 'fail', 'detail': str(e)})
+            overall_pass = False
+            return Response({'host': host, 'port': port, 'overall': 'fail', 'results': results})
+
+        # ── Step 2: TCP connection ────────────────────────────────────────
+        try:
+            sock = socket.create_connection((host, port), timeout=10)
+            sock.close()
+            results.append({'test': f'TCP Connection (port {port})', 'status': 'pass', 'detail': f'Connected to {host}:{port}'})
+        except (socket.timeout, ConnectionRefusedError, OSError) as e:
+            results.append({'test': f'TCP Connection (port {port})', 'status': 'fail', 'detail': str(e)})
+            overall_pass = False
+            return Response({'host': host, 'port': port, 'overall': 'fail', 'results': results})
+
+        # ── Step 3: SMTP handshake + feature detection ────────────────────
+        banner = ''
+        extensions = {}
+        tls_supported = False
+
+        try:
+            if port == 465:
+                # Implicit TLS (SMTPS)
+                ctx = ssl.create_default_context()
+                with smtplib.SMTP_SSL(host, port, timeout=10, context=ctx) as smtp:
+                    banner = smtp.ehlo_or_helo_if_needed()
+                    extensions = smtp.esmtp_features
+                    tls_supported = True
+                    results.append({'test': 'TLS (implicit)', 'status': 'pass', 'detail': f'SSL/TLS negotiated on port {port}'})
+            else:
+                with smtplib.SMTP(host, port, timeout=10) as smtp:
+                    code, msg = smtp.ehlo()
+                    extensions = smtp.esmtp_features
+                    banner = msg.decode('utf-8', errors='ignore') if isinstance(msg, bytes) else str(msg)
+
+                    # STARTTLS
+                    if 'starttls' in extensions:
+                        try:
+                            smtp.starttls()
+                            smtp.ehlo()
+                            tls_supported = True
+                            results.append({'test': 'STARTTLS', 'status': 'pass', 'detail': 'STARTTLS negotiated successfully'})
+                        except Exception as e:
+                            results.append({'test': 'STARTTLS', 'status': 'warn', 'detail': f'Advertised but failed: {e}'})
+                    else:
+                        results.append({'test': 'STARTTLS', 'status': 'warn', 'detail': 'STARTTLS not advertised — emails sent in plain text'})
+                        overall_pass = False
+
+            results.append({'test': 'SMTP Handshake', 'status': 'pass', 'detail': f'Server banner: {banner[:120]}'})
+
+            # AUTH methods
+            auth = extensions.get('auth', '')
+            auth_methods = auth.upper().split() if auth else []
+            if auth_methods:
+                results.append({'test': 'AUTH Methods', 'status': 'pass', 'detail': f'Supported: {", ".join(auth_methods)}'})
+            else:
+                results.append({'test': 'AUTH Methods', 'status': 'info', 'detail': 'No AUTH advertised (may require credentials first)'})
+
+            # SIZE
+            size = extensions.get('size', '')
+            if size:
+                try:
+                    mb = int(size) / (1024 * 1024)
+                    results.append({'test': 'Max Message Size', 'status': 'pass', 'detail': f'{mb:.0f} MB limit advertised'})
+                except ValueError:
+                    pass
+
+        except smtplib.SMTPException as e:
+            results.append({'test': 'SMTP Handshake', 'status': 'fail', 'detail': str(e)})
+            overall_pass = False
+        except Exception as e:
+            results.append({'test': 'SMTP Handshake', 'status': 'fail', 'detail': str(e)})
+            overall_pass = False
+
+        # ── Step 4: TLS certificate check (port 587/465) ─────────────────
+        if tls_supported:
+            try:
+                ctx = ssl.create_default_context()
+                with ctx.wrap_socket(socket.create_connection((host, port), timeout=10), server_hostname=host) as ssock:
+                    cert = ssock.getpeercert()
+                    subject = dict(x[0] for x in cert.get('subject', []))
+                    cn = subject.get('commonName', 'unknown')
+                    expires = cert.get('notAfter', '')
+                    results.append({'test': 'TLS Certificate', 'status': 'pass', 'detail': f'Valid cert for {cn}, expires {expires}'})
+            except ssl.SSLCertVerificationError as e:
+                results.append({'test': 'TLS Certificate', 'status': 'fail', 'detail': f'Certificate error: {e}'})
+                overall_pass = False
+            except Exception:
+                pass  # Already handled above
+
+        overall = 'pass' if overall_pass else ('warn' if any(r['status'] == 'warn' for r in results) else 'fail')
+        return Response({'host': host, 'port': port, 'overall': overall, 'results': results})
+
+
+# ── Domain Reputation Monitoring ──────────────────────────────────────────
+
+def _compute_reputation_score(spf, dmarc, dkim, mx, blacklisted_on) -> int:
+    score = 100
+    if not spf:      score -= 20
+    if not dmarc:    score -= 20
+    if not dkim:     score -= 15
+    if not mx:       score -= 20
+    score -= min(len(blacklisted_on) * 10, 25)
+    return max(score, 0)
+
+
+def _run_domain_checks(domain: str) -> dict:
+    """Run all DNS/blacklist checks for a domain and return a summary dict."""
+    spf   = _check_spf(domain)
+    dmarc = _check_dmarc(domain)
+    dkim  = _check_dkim(domain)
+
+    # MX check
+    mx_found = False
+    try:
+        answers = dns.resolver.resolve(domain, 'MX', lifetime=10)
+        mx_found = bool(answers)
+    except Exception:
+        pass
+
+    # Blacklist check (reuse existing logic, limit to top lists for speed)
+    TOP_DNSBLS = [
+        {'zone': 'zen.spamhaus.org',   'name': 'Spamhaus ZEN'},
+        {'zone': 'bl.spamcop.net',     'name': 'SpamCop'},
+        {'zone': 'dnsbl.sorbs.net',    'name': 'SORBS'},
+        {'zone': 'b.barracudacentral.org', 'name': 'Barracuda'},
+    ]
+    blacklisted_on = []
+    try:
+        import socket as _socket
+        ips = _socket.gethostbyname_ex(domain)[2]
+        for ip in ips[:2]:
+            rev = '.'.join(reversed(ip.split('.')))
+            for bl in TOP_DNSBLS:
+                try:
+                    dns.resolver.resolve(f'{rev}.{bl["zone"]}', 'A', lifetime=5)
+                    blacklisted_on.append(bl['name'])
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    score = _compute_reputation_score(spf['found'], dmarc['found'], dkim['found'], mx_found, blacklisted_on)
+    return {
+        'spf_found':      spf['found'],
+        'dmarc_found':    dmarc['found'],
+        'dkim_found':     dkim['found'],
+        'mx_found':       mx_found,
+        'blacklisted_on': blacklisted_on,
+        'reputation_score': score,
+        'spf_record':     spf.get('record'),
+        'dmarc_record':   dmarc.get('record'),
+        'dmarc_policy':   dmarc.get('policy'),
+    }
+
+
+class MonitoredDomainView(APIView):
+    """
+    GET  /api/v1/deliverability/monitored-domains/       — list monitored domains
+    POST /api/v1/deliverability/monitored-domains/       — add a domain to monitor
+    DELETE /api/v1/deliverability/monitored-domains/<pk>/ — remove a domain
+    """
+
+    def get(self, request, pk=None):
+        from .models import MonitoredDomain, DomainReputationSnapshot
+        if pk:
+            try:
+                md = MonitoredDomain.objects.get(pk=pk, user=request.user)
+            except MonitoredDomain.DoesNotExist:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            snapshots = list(md.snapshots.values(
+                'checked_at', 'reputation_score', 'blacklisted_on',
+                'spf_found', 'dmarc_found', 'dkim_found', 'mx_found',
+            )[:30])
+            return Response({**_serialize_monitored(md), 'history': snapshots})
+
+        domains = MonitoredDomain.objects.filter(user=request.user)
+        return Response([_serialize_monitored(d) for d in domains])
+
+    def post(self, request, pk=None):
+        from .models import MonitoredDomain, DomainReputationSnapshot
+        from django.utils import timezone
+
+        domain = request.data.get('domain', '').strip().lower().lstrip('https://').lstrip('http://').split('/')[0]
+        if not domain:
+            return Response({'detail': 'domain is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if MonitoredDomain.objects.filter(user=request.user, domain=domain).exists():
+            return Response({'detail': f'{domain} is already being monitored.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Run initial checks
+        checks = _run_domain_checks(domain)
+        md = MonitoredDomain.objects.create(
+            user=request.user, domain=domain,
+            last_checked_at=timezone.now(),
+            **{k: checks[k] for k in ('blacklisted_on','spf_found','dmarc_found','dkim_found','mx_found','reputation_score')},
+        )
+        DomainReputationSnapshot.objects.create(
+            monitored=md,
+            **{k: checks[k] for k in ('blacklisted_on','spf_found','dmarc_found','dkim_found','mx_found','reputation_score')},
+        )
+        return Response(_serialize_monitored(md), status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk=None):
+        from .models import MonitoredDomain
+        try:
+            MonitoredDomain.objects.get(pk=pk, user=request.user).delete()
+        except MonitoredDomain.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _serialize_monitored(md) -> dict:
+    return {
+        'id':               str(md.pk),
+        'domain':           md.domain,
+        'last_checked_at':  md.last_checked_at.isoformat() if md.last_checked_at else None,
+        'reputation_score': md.reputation_score,
+        'blacklisted_on':   md.blacklisted_on or [],
+        'spf_found':        md.spf_found,
+        'dmarc_found':      md.dmarc_found,
+        'dkim_found':       md.dkim_found,
+        'mx_found':         md.mx_found,
+    }
+
+
+# ── AI Deliverability Advisor ──────────────────────────────────────────────
+
+class AIDeliverabilityAdvisorView(APIView):
+    """POST /api/v1/deliverability/ai-advisor/ — AI-powered deliverability analysis via OpenAI."""
+
+    def post(self, request):
+        from openai import OpenAI
+        from django.conf import settings
+
+        domain = request.data.get('domain', '').strip().lower()
+        if not domain:
+            return Response({'detail': 'domain is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        api_key = getattr(settings, 'OPENAI_API_KEY', '')
+        if not api_key:
+            return Response({'detail': 'AI advisor is not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        # Run all deliverability checks
+        checks = _run_domain_checks(domain)
+
+        prompt = f"""You are an expert email deliverability consultant. Analyze the following DNS and reputation data for the domain "{domain}" and provide clear, actionable advice.
+
+## Domain Analysis Results
+
+**SPF Record**: {'✅ Found' if checks['spf_found'] else '❌ Missing'}{f" — `{checks['spf_record']}`" if checks.get('spf_record') else ''}
+**DMARC Record**: {'✅ Found' if checks['dmarc_found'] else '❌ Missing'}{f" — policy: `{checks['dmarc_policy']}`" if checks.get('dmarc_policy') else ''}
+**DKIM**: {'✅ Found (default selector)' if checks['dkim_found'] else '⚠️ Not found on default selector'}
+**MX Records**: {'✅ Found' if checks['mx_found'] else '❌ Missing'}
+**Blacklists**: {', '.join(checks['blacklisted_on']) if checks['blacklisted_on'] else '✅ Clean — not on any major blacklist'}
+**Reputation Score**: {checks['reputation_score']}/100
+
+## Instructions
+
+Provide a structured analysis with:
+1. **Overall Assessment** — 2-3 sentences summarising the domain's deliverability health
+2. **Critical Issues** — list any issues that will immediately hurt deliverability (missing SPF/DMARC, blacklisted)
+3. **Recommendations** — numbered list of specific, actionable steps to fix each issue, with exact DNS records to add where relevant
+4. **What's Working** — brief note on what's already configured correctly
+
+Be specific and technical. Include exact DNS record values where possible. Keep it concise."""
+
+        try:
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model='gpt-4o',
+                max_tokens=1024,
+                messages=[{'role': 'user', 'content': prompt}],
+            )
+            advice = response.choices[0].message.content
+        except Exception as e:
+            return Response({'detail': f'AI analysis failed: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response({
+            'domain':     domain,
+            'checks':     checks,
+            'advice':     advice,
+            'score':      checks['reputation_score'],
+        })
+
+
 def _serialize_test(test) -> dict:
     from .models import InboxPlacementResult
     results = test.results.all()

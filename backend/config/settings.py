@@ -222,6 +222,7 @@ KICKBOX_API_KEY     = config('KICKBOX_API_KEY', default='')
 # ── Social login ──────────────────────────────────────────────────────────
 GOOGLE_CLIENT_ID      = config('GOOGLE_CLIENT_ID', default='')
 GOOGLE_CLIENT_SECRET  = config('GOOGLE_CLIENT_SECRET', default='')
+OPENAI_API_KEY        = config('OPENAI_API_KEY', default='')
 GITHUB_CLIENT_ID      = config('GITHUB_CLIENT_ID', default='')
 GITHUB_CLIENT_SECRET  = config('GITHUB_CLIENT_SECRET', default='')
 

@@ -63,3 +63,44 @@ class InboxPlacementResult(models.Model):
 
     def __str__(self):
         return f'{self.provider} → {self.placement}'
+
+
+class MonitoredDomain(models.Model):
+    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='monitored_domains')
+    domain     = models.CharField(max_length=255, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # Latest snapshot — updated on every check
+    last_checked_at   = models.DateTimeField(null=True, blank=True)
+    blacklisted_on    = models.JSONField(default=list)   # list of DNSBL names
+    spf_found         = models.BooleanField(null=True)
+    dmarc_found       = models.BooleanField(null=True)
+    dkim_found        = models.BooleanField(null=True)
+    mx_found          = models.BooleanField(null=True)
+    reputation_score  = models.IntegerField(null=True)   # 0-100
+
+    class Meta:
+        db_table     = 'deliverability_monitored_domain'
+        unique_together = [('user', 'domain')]
+        ordering     = ['domain']
+
+    def __str__(self):
+        return f'{self.user.email} → {self.domain}'
+
+
+class DomainReputationSnapshot(models.Model):
+    """One row per daily check per monitored domain."""
+    id              = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    monitored       = models.ForeignKey(MonitoredDomain, on_delete=models.CASCADE, related_name='snapshots')
+    checked_at      = models.DateTimeField(auto_now_add=True)
+    blacklisted_on  = models.JSONField(default=list)
+    spf_found       = models.BooleanField(null=True)
+    dmarc_found     = models.BooleanField(null=True)
+    dkim_found      = models.BooleanField(null=True)
+    mx_found        = models.BooleanField(null=True)
+    reputation_score = models.IntegerField(null=True)
+
+    class Meta:
+        db_table = 'deliverability_domain_snapshot'
+        ordering = ['-checked_at']
