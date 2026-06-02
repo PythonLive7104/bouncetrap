@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { useGoogleLogin } from '@react-oauth/google'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || ''
 const GITHUB_REDIRECT  = `${window.location.origin}/auth/github/callback`
 
@@ -30,18 +30,15 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [serverError, setServerError] = useState('')
 
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        const { data } = await api.post('/auth/social/google/', { credential: tokenResponse.access_token })
-        setAuth(data.user, data.access)
-        navigate('/dashboard')
-      } catch {
-        setServerError('Google sign-up failed. Please try again.')
-      }
-    },
-    onError: () => setServerError('Google sign-up was cancelled.'),
-  })
+  function handleGoogle() {
+    const p = new URLSearchParams({
+      client_id:     GOOGLE_CLIENT_ID,
+      redirect_uri:  `${window.location.origin}/auth/google/callback`,
+      response_type: 'token',
+      scope:         'email profile',
+    })
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${p}`
+  }
 
   function handleGitHub() {
     const url = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&scope=user:email&redirect_uri=${encodeURIComponent(GITHUB_REDIRECT)}`
@@ -140,7 +137,7 @@ export default function RegisterPage() {
         <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
           <button
             type="button"
-            onClick={() => googleLogin()}
+            onClick={handleGoogle}
             className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-white text-sm font-medium transition-colors mb-3"
           >
             <GoogleIcon />
