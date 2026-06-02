@@ -39,30 +39,19 @@ function ProgressBar({ processed, total }) {
   )
 }
 
+const PLAN_MAX_ROWS = {
+  free:       20,
+  starter:    5_000,
+  growth:     50_000,
+  pro:        500_000,
+  enterprise: 500_000,
+}
+
 function UploadZone({ onUpload, uploading, plan }) {
   const inputRef = useRef(null)
   const [drag, setDrag] = useState(false)
   const [filename, setFilename] = useState('')
-
-  if (plan === 'free') {
-    return (
-      <div className="rounded-2xl border border-brand-800/30 bg-brand-950/30 p-8 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-brand-600/15 flex items-center justify-center mx-auto mb-4">
-          <svg className="w-7 h-7 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        </div>
-        <h3 className="text-white font-semibold text-lg mb-2">Bulk verification requires a paid plan</h3>
-        <p className="text-slate-400 text-sm mb-5 max-w-sm mx-auto">
-          Upgrade to Starter to verify up to 5,000 emails per job with full CSV download and progress tracking.
-        </p>
-        <Link to="/dashboard/billing"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-brand-900/30">
-          View plans →
-        </Link>
-      </div>
-    )
-  }
+  const rowLimit = PLAN_MAX_ROWS[plan] ?? 100
 
   function handleDrop(e) {
     e.preventDefault(); setDrag(false)
@@ -117,10 +106,16 @@ function UploadZone({ onUpload, uploading, plan }) {
             <p className="text-slate-500 text-xs mt-1">Supports CSV and TXT — one email per line or column</p>
           </div>
           <div className="flex items-center gap-4 text-xs text-slate-600">
-            <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-slate-600" />Max 100 MB</span>
+            <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-slate-600" />Max {rowLimit.toLocaleString()} emails</span>
             <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-slate-600" />Auto-deduplication</span>
             <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-slate-600" />CSV results download</span>
           </div>
+          {plan === 'free' && (
+            <p className="text-xs text-amber-400/70">
+              Free plan — up to 20 emails per job, shared with your daily single-verify limit.{' '}
+              <Link to="/dashboard/billing" className="text-amber-400 hover:underline">Upgrade for 5,000+</Link>
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -324,7 +319,9 @@ export default function BulkJobsPage() {
       await api.post('/verify/bulk/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       await fetchJobs()
     } catch (err) {
-      if (err.response?.status === 402 && err.response?.data?.detail?.includes('subscription')) {
+      if (err.response?.status === 429) {
+        setUploadError(err.response.data?.detail || 'Daily limit reached. Try again tomorrow or upgrade your plan.')
+      } else if (err.response?.status === 402 && err.response?.data?.detail?.includes('subscription')) {
         setShowExpiredModal(true)
       } else {
         setUploadError(err.response?.data?.detail || 'Upload failed. Please try again.')
@@ -461,7 +458,7 @@ export default function BulkJobsPage() {
       </div>
 
       {/* Format guide */}
-      {user?.plan !== 'free' && (
+      {(
         <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-5">
           <h4 className="text-white font-semibold text-sm mb-3">File format guide</h4>
           <div className="grid sm:grid-cols-2 gap-4 text-xs text-slate-400">

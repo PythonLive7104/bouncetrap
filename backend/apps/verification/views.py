@@ -28,7 +28,7 @@ from apps.billing.models import CreditLedger
 FREE_PLAN_DAILY_LIMIT = 20  # verifications per day for free plan users
 
 PLAN_ROW_LIMITS = {
-    'free':       0,        # no bulk on free plan
+    'free':       20,
     'starter':    5_000,
     'growth':     50_000,
     'pro':        500_000,
@@ -150,12 +150,23 @@ class BulkUploadView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Block free plan
+        # Free plan: enforce the same 20 credits/day limit as single verify
         if request.user.plan == 'free':
-            return Response(
-                {'detail': 'Bulk verification requires Starter plan or above.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            used_today = _free_plan_daily_used(request.user)
+            if used_today >= FREE_PLAN_DAILY_LIMIT:
+                return Response(
+                    {
+                        'detail': (
+                            f'You have reached your free plan limit of {FREE_PLAN_DAILY_LIMIT} '
+                            f'verifications per day. Upgrade to Starter for 5,000 per month, '
+                            f'or try again tomorrow.'
+                        ),
+                        'daily_limit': FREE_PLAN_DAILY_LIMIT,
+                        'daily_used':  used_today,
+                        'upgrade_url': '/dashboard/billing',
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
 
         # Block expired subscriptions
         if not request.user.subscription_active:

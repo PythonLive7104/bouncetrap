@@ -70,7 +70,7 @@ def _compute_health(total: int, valid: int, invalid: int, risky: int, unknown: i
 
     return grade, advice
 MAX_ROWS   = {
-    'free':       0,
+    'free':       20,       # matches the 20 credits/day daily limit
     'starter':    5_000,
     'growth':     50_000,
     'pro':        500_000,
