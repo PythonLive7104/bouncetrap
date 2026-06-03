@@ -136,7 +136,7 @@ function PlanCard({ plan, isCurrent, isYearly, onUpgrade, isUpgrading }) {
               {isYearly && <span className="text-slate-500 text-sm">/year</span>}
             </div>
             {isYearly && savings > 0 && (
-              <p className="text-xs text-emerald-400 font-medium mt-0.5">Save ${savings}/yr vs. monthly</p>
+              <p className="text-xs text-emerald-400 font-medium mt-0.5">Save ${savings}/yr vs. bundle</p>
             )}
             {!isYearly && (
               <p className="text-xs text-slate-600 mt-0.5">or ${plan.monthlyPrice * 10}/yr (save ${savings})</p>
@@ -447,7 +447,7 @@ export default function BillingPage() {
 
           {/* Billing toggle */}
           <div className="flex items-center gap-3">
-            <span className={`text-sm font-medium transition-colors ${!isYearly ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
+            <span className={`text-sm font-medium transition-colors ${!isYearly ? 'text-white' : 'text-slate-500'}`}>Bundle</span>
             <button
               onClick={() => setIsYearly((v) => !v)}
               className={`relative w-12 h-6 rounded-full transition-colors ${isYearly ? 'bg-brand-600' : 'bg-white/15'}`}

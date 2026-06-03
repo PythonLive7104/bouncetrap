@@ -612,7 +612,7 @@ export default function LandingPage() {
                   }`}
                   aria-pressed={!isYearly}
                 >
-                  Monthly
+                  Bundle
                 </button>
                 <button
                   onClick={() => setBilling('yearly')}
