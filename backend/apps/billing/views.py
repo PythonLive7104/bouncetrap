@@ -27,6 +27,11 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+# Loyalty reward card — every completed purchase (any plan or pack) earns one
+# stamp. Collect 10 stamps and the next reward grants free credits automatically.
+LOYALTY_STAMPS_REQUIRED = 10
+LOYALTY_REWARD_CREDITS  = 25_000
+
 
 CREDIT_PACKS = [
     {'id': 'pack_25k',  'credits': 25_000,  'price_usd': '20.00',  'label': '25,000 credits'},
@@ -65,6 +70,20 @@ class CreditBalanceView(APIView):
             'used_this_month':  used_this_month,
         }
         return Response(CreditBalanceSerializer(data).data)
+
+
+class LoyaltyView(APIView):
+    """GET /api/v1/billing/loyalty/ — User's reward-card progress."""
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'stamps':          user.loyalty_stamps,
+            'stamps_required': LOYALTY_STAMPS_REQUIRED,
+            'reward_credits':  LOYALTY_REWARD_CREDITS,
+            'rewards_earned':  user.loyalty_rewards_earned,
+            'stamps_to_go':    max(LOYALTY_STAMPS_REQUIRED - user.loyalty_stamps, 0),
+        })
 
 
 class PlanListView(APIView):
@@ -383,24 +402,43 @@ class NowPaymentsWebhookView(APIView):
 
             # Credits-only model: every purchase just tops up credits and unlocks
             # full feature access (plan='paid'). Nothing ever expires.
+            if user.plan == 'free':
+                user.plan = User.PLAN_PAID
             if invoice.invoice_type == NowPaymentsInvoice.TYPE_PACK:
-                if user.plan == 'free':
-                    user.plan = User.PLAN_PAID
-                user.save(update_fields=['plan', 'credits'])
                 notes = f'Credit pack {invoice.plan} via crypto'
             else:
-                user.plan = User.PLAN_PAID
-                user.save(update_fields=['plan', 'credits'])
                 notes = f'{invoice.credits_to_add:,} credits via crypto ({payment_status})'
+
+            # ── Loyalty reward card — every purchase earns one stamp ──────
+            user.loyalty_stamps += 1
+            reward_won = False
+            if user.loyalty_stamps >= LOYALTY_STAMPS_REQUIRED:
+                user.loyalty_stamps    -= LOYALTY_STAMPS_REQUIRED
+                user.loyalty_rewards_earned += 1
+                user.credits           += LOYALTY_REWARD_CREDITS
+                reward_won = True
+
+            user.save(update_fields=['plan', 'credits', 'loyalty_stamps', 'loyalty_rewards_earned'])
 
             CreditLedger.objects.create(
                 user          = user,
                 amount        = invoice.credits_to_add,
                 operation     = CreditLedger.OP_PURCHASE,
                 reference     = f'nowpayments:{invoice.invoice_id}',
-                balance_after = user.credits,
+                balance_after = user.credits - (LOYALTY_REWARD_CREDITS if reward_won else 0),
                 notes         = notes,
             )
+
+            if reward_won:
+                CreditLedger.objects.create(
+                    user          = user,
+                    amount        = LOYALTY_REWARD_CREDITS,
+                    operation     = CreditLedger.OP_BONUS,
+                    reference     = f'loyalty:reward:{user.loyalty_rewards_earned}',
+                    balance_after = user.credits,
+                    notes         = f'Loyalty reward — {LOYALTY_STAMPS_REQUIRED} purchases completed 🎉',
+                )
+                logger.info('Loyalty reward: %d credits granted to %s', LOYALTY_REWARD_CREDITS, user.email)
             logger.info(
                 'NOWPayments IPN: credited %d to user %s (order=%s status=%s)',
                 invoice.credits_to_add, user.email, order_id, payment_status,

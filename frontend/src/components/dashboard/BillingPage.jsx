@@ -2,6 +2,56 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
+function LoyaltyCard({ loyalty }) {
+  if (!loyalty) return null
+  const { stamps, stamps_required, reward_credits, stamps_to_go, rewards_earned } = loyalty
+
+  return (
+    <div className="rounded-2xl border border-brand-800/40 bg-gradient-to-b from-brand-950/40 to-white/[0.02] p-5">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <h3 className="text-white font-semibold text-base">Reward card</h3>
+          <p className="text-slate-500 text-sm mt-0.5">
+            {stamps_to_go === 0
+              ? 'Your next purchase earns the reward!'
+              : `${stamps_to_go} more purchase${stamps_to_go !== 1 ? 's' : ''} → ${reward_credits.toLocaleString()} free credits`}
+          </p>
+        </div>
+        {rewards_earned > 0 && (
+          <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-semibold">
+            {rewards_earned} reward{rewards_earned !== 1 ? 's' : ''} earned 🎉
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+        {Array.from({ length: stamps_required }).map((_, i) => {
+          const filled   = i < stamps
+          const isReward = i === stamps_required - 1
+          return (
+            <div
+              key={i}
+              className={`aspect-square rounded-xl flex items-center justify-center border-2 text-xs font-bold transition-colors ${
+                filled
+                  ? 'border-brand-500/50 bg-brand-600/25 text-brand-200'
+                  : isReward
+                    ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-400'
+                    : 'border-dashed border-white/12 bg-white/[0.02] text-slate-600'
+              }`}
+            >
+              {filled ? '✓' : isReward ? '★' : i + 1}
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-xs text-slate-600 mt-3">
+        Every credit purchase — any plan or pack — earns one stamp. Collect {stamps_required} for {reward_credits.toLocaleString()} free credits, added automatically.
+      </p>
+    </div>
+  )
+}
+
 function CreditStatusCard({ plan, credits }) {
   if (!plan || plan === 'free') return null
 
@@ -336,6 +386,7 @@ export default function BillingPage() {
   const [upgradeError, setUpgradeError] = useState('')
   const [buyingPack, setBuyingPack]     = useState(null)
   const [packError, setPackError]       = useState('')
+  const [loyalty, setLoyalty]           = useState(null)
 
   const currentPlan = user?.plan || 'free'
   const isFreePlan  = currentPlan === 'free'
@@ -350,6 +401,9 @@ export default function BillingPage() {
       .then(({ data }) => setLedger(data.results || data))
       .catch(() => {})
       .finally(() => setLedgerLoading(false))
+    api.get('/billing/loyalty/')
+      .then(({ data }) => setLoyalty(data))
+      .catch(() => {})
   }, [])
 
   async function handleBuyPack(packId) {
@@ -389,6 +443,8 @@ export default function BillingPage() {
       </div>
 
       <CreditStatusCard plan={currentPlan} credits={credits} />
+
+      <LoyaltyCard loyalty={loyalty} />
 
       {/* Current usage */}
       <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">

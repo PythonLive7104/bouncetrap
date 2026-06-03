@@ -359,7 +359,7 @@ export default function LandingPage() {
             </Link>
 
             <div className="hidden md:flex items-center gap-8">
-              {[['Features', '#features'], ['Pricing', '#pricing'], ['API', '#api'], ['FAQ', '#faq']].map(([l, h]) => (
+              {[['Features', '#features'], ['Pricing', '#pricing'], ['Rewards', '#rewards'], ['API', '#api'], ['FAQ', '#faq']].map(([l, h]) => (
                 <a key={l} href={h} className="text-sm text-slate-400 hover:text-white transition-colors">{l}</a>
               ))}
               <Link to="/blog" className="text-sm text-slate-400 hover:text-white transition-colors">Blog</Link>
@@ -762,6 +762,73 @@ export default function LandingPage() {
 
             <p className="text-center text-sm text-slate-600 mt-4">
               All plans include a 7-day money-back guarantee · Cancel any time · No lock-in contracts
+            </p>
+          </div>
+        </section>
+
+        {/* ── Loyalty reward card ─────────────────────────────────────── */}
+        <section id="rewards" className="py-24 px-6" aria-labelledby="rewards-heading">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <p className="text-xs font-semibold uppercase tracking-widest text-brand-400 mb-3">Rewards</p>
+              <h2 id="rewards-heading" className="text-3xl font-bold text-white mb-4">Buy 10, get 25,000 credits free</h2>
+              <p className="text-slate-400 max-w-2xl mx-auto">
+                Every credit purchase stamps your reward card — any plan, any size. Collect 10 stamps and we drop
+                <span className="text-white font-semibold"> 25,000 free credits</span> straight into your balance. Automatically.
+              </p>
+            </div>
+
+            {/* Punch card */}
+            <div className="rounded-3xl border border-brand-800/40 bg-gradient-to-b from-brand-950/40 to-white/[0.02] p-8 sm:p-10">
+              <div className="grid grid-cols-5 gap-3 sm:gap-4 mb-8">
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const isReward = i === 9
+                  return (
+                    <div
+                      key={i}
+                      className={`aspect-square rounded-2xl flex items-center justify-center border-2 ${
+                        isReward
+                          ? 'border-emerald-500/50 bg-emerald-500/10'
+                          : 'border-dashed border-white/15 bg-white/[0.02]'
+                      }`}
+                    >
+                      {isReward ? (
+                        <div className="text-center">
+                          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" />
+                          </svg>
+                          <span className="block text-[10px] sm:text-xs font-bold text-emerald-300 mt-1">FREE</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm sm:text-lg font-bold text-slate-600">{i + 1}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/8 pt-6">
+                <div className="flex items-center gap-6 text-center sm:text-left">
+                  <div>
+                    <p className="text-2xl font-extrabold text-white">10</p>
+                    <p className="text-xs text-slate-500">purchases</p>
+                  </div>
+                  <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                  <div>
+                    <p className="text-2xl font-extrabold text-emerald-400">25,000</p>
+                    <p className="text-xs text-slate-500">free credits</p>
+                  </div>
+                </div>
+                <Link to="/register" className="w-full sm:w-auto text-center px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition-colors">
+                  Start collecting →
+                </Link>
+              </div>
+            </div>
+
+            <p className="text-center text-xs text-slate-600 mt-4">
+              Stamps apply to every plan and credit pack. Rewards are credited automatically — and your credits never expire.
             </p>
           </div>
         </section>

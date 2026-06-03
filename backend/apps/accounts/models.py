@@ -70,6 +70,10 @@ class User(AbstractUser):
     referred_by             = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='referrals')
     referral_credits_earned = models.PositiveIntegerField(default=0)
 
+    # Loyalty reward card — every purchase = 1 stamp; 10 stamps = free credits
+    loyalty_stamps          = models.PositiveIntegerField(default=0)   # progress toward current card
+    loyalty_rewards_earned  = models.PositiveIntegerField(default=0)   # lifetime rewards won
+
     USERNAME_FIELD  = 'email'
     REQUIRED_FIELDS = []
 
