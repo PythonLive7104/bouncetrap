@@ -15,7 +15,6 @@ from .models import Team, TeamMembership, TeamInvite
 
 
 INVITE_EXPIRY_DAYS = 7
-TEAM_PLAN_REQUIRED = ('growth', 'pro', 'enterprise')
 
 
 def _serialize_team(team, user):
@@ -52,9 +51,9 @@ class TeamListCreateView(APIView):
         return Response([_serialize_team(t, request.user) for t in teams])
 
     def post(self, request):
-        if request.user.plan not in TEAM_PLAN_REQUIRED:
+        if request.user.plan == 'free':
             return Response(
-                {'detail': 'Teams require Growth plan or above.'},
+                {'detail': 'Teams require credits. Purchase credits to unlock.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         name = request.data.get('name', '').strip()

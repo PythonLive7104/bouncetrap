@@ -69,13 +69,14 @@ def _compute_health(total: int, valid: int, invalid: int, risky: int, unknown: i
         advice.append(f'{unknown_pct:.0f}% unverified — these addresses couldn\'t be confirmed; send with caution.')
 
     return grade, advice
-MAX_ROWS   = {
-    'free':       20,       # matches the 20 credits/day daily limit
-    'starter':    5_000,
-    'growth':     50_000,
-    'pro':        500_000,
-    'enterprise': 500_000,
-}
+# Credits-only model: free trial is capped at 20 rows/job; paid accounts are
+# limited only by their credit balance (cap kept very high as a safety bound).
+FREE_MAX_ROWS = 20
+PAID_MAX_ROWS = 1_000_000
+
+
+def _plan_row_limit(plan: str) -> int:
+    return FREE_MAX_ROWS if plan == 'free' else PAID_MAX_ROWS
 
 
 def _read_emails_from_file(file_path: str, email_column: str = '') -> list[str]:
@@ -191,7 +192,7 @@ def process_bulk_job(self, job_id: str, start_index: int = 0):
 def _run_bulk_job(task, job, job_id: str, start_index: int):
     """Inner implementation — separated so the outer task can catch all exceptions."""
     user     = job.user
-    plan_max = MAX_ROWS.get(user.plan, 0)
+    plan_max = _plan_row_limit(user.plan)
 
     all_emails = _read_emails_from_file(job.file_path, job.email_column)
 

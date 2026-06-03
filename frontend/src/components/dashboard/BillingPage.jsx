@@ -2,36 +2,20 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
-function SubscriptionStatusCard({ plan, active, expiresAt }) {
+function CreditStatusCard({ plan, credits }) {
   if (!plan || plan === 'free') return null
 
-  const expiry   = expiresAt ? new Date(expiresAt) : null
-  const now      = new Date()
-  const daysLeft = expiry ? Math.max(0, Math.ceil((expiry - now) / (1000 * 60 * 60 * 24))) : null
-  const expired  = !active || (expiry && expiry <= now)
-
   return (
-    <div className={`rounded-2xl border p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${
-      expired
-        ? 'bg-red-500/5 border-red-500/20'
-        : daysLeft !== null && daysLeft <= 7
-          ? 'bg-amber-500/5 border-amber-500/20'
-          : 'bg-emerald-500/5 border-emerald-500/20'
-    }`}>
+    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
       <div className="flex-1 space-y-1">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${expired ? 'bg-red-400' : 'bg-emerald-400 animate-pulse'}`} />
-          <p className={`text-sm font-semibold ${expired ? 'text-red-300' : 'text-emerald-300'}`}>
-            {expired ? 'Subscription expired' : `Active — ${daysLeft !== null ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining` : 'Active'}`}
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <p className="text-sm font-semibold text-emerald-300">
+            Active — {(credits ?? 0).toLocaleString()} credit{credits !== 1 ? 's' : ''} available
           </p>
         </div>
-        {expiry && (
-          <p className="text-xs text-slate-500 pl-4">
-            {expired ? `Expired on ${expiry.toLocaleDateString()}` : `Renews by ${expiry.toLocaleDateString()}`}
-          </p>
-        )}
         <p className="text-xs text-slate-500 pl-4 mt-1">
-          Your credits never expire — they are locked when your subscription lapses and unlocked the moment you renew.
+          Your credits never expire and your account never pauses. Top up any time — no monthly subscription, no renewals.
         </p>
       </div>
     </div>
@@ -344,7 +328,7 @@ function InvoicesSection() {
 }
 
 export default function BillingPage() {
-  const { user, credits, subscriptionActive, subscriptionExpiresAt } = useAuthStore()
+  const { user, credits } = useAuthStore()
   const [isYearly, setIsYearly]         = useState(false)
   const [ledger, setLedger]             = useState([])
   const [ledgerLoading, setLedgerLoading] = useState(true)
@@ -354,9 +338,12 @@ export default function BillingPage() {
   const [packError, setPackError]       = useState('')
 
   const currentPlan = user?.plan || 'free'
-  const planLimit   = PLAN_LIMITS[currentPlan] || 100
+  const isFreePlan  = currentPlan === 'free'
+  // Free trial shows usage against the 100-credit baseline; paid accounts just
+  // show their balance (credits-only model — no fixed monthly allowance).
+  const planLimit   = 100
   const used        = Math.max(0, planLimit - credits)
-  const usedPct     = Math.min((used / planLimit) * 100, 100)
+  const usedPct     = isFreePlan ? Math.min((used / planLimit) * 100, 100) : 0
 
   useEffect(() => {
     api.get('/billing/credits/history/?limit=8')
@@ -401,35 +388,39 @@ export default function BillingPage() {
         <p className="text-sm text-slate-400 mt-1">Manage your subscription and credit usage.</p>
       </div>
 
-      <SubscriptionStatusCard
-        plan={currentPlan}
-        active={subscriptionActive}
-        expiresAt={subscriptionExpiresAt}
-      />
+      <CreditStatusCard plan={currentPlan} credits={credits} />
 
       {/* Current usage */}
       <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
         <div className="flex items-start justify-between mb-5 gap-4">
           <div>
-            <h3 className="text-white font-semibold text-base">Credit usage</h3>
-            <p className="text-slate-500 text-sm mt-0.5 capitalize">{currentPlan} plan</p>
+            <h3 className="text-white font-semibold text-base">Credit balance</h3>
+            <p className="text-slate-500 text-sm mt-0.5">{isFreePlan ? 'Free trial' : 'Pay-as-you-go · credits never expire'}</p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-2xl font-bold text-white">{credits.toLocaleString()}</p>
-            <p className="text-xs text-slate-500">of {planLimit.toLocaleString()} remaining</p>
+            <p className="text-xs text-slate-500">{isFreePlan ? `of ${planLimit} free` : 'credits available'}</p>
           </div>
         </div>
 
-        <div className="w-full h-2.5 rounded-full bg-white/8 mb-2 overflow-hidden">
-          <div
-            className={`h-2.5 rounded-full transition-all duration-500 ${barColor}`}
-            style={{ width: `${usedPct}%` }}
-          />
-        </div>
-        <div className="flex justify-between text-xs text-slate-500">
-          <span>{used.toLocaleString()} used</span>
-          <span>{planLimit.toLocaleString()} total</span>
-        </div>
+        {isFreePlan ? (
+          <>
+            <div className="w-full h-2.5 rounded-full bg-white/8 mb-2 overflow-hidden">
+              <div
+                className={`h-2.5 rounded-full transition-all duration-500 ${barColor}`}
+                style={{ width: `${usedPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>{used.toLocaleString()} used</span>
+              <span>{planLimit.toLocaleString()} total</span>
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-2.5 rounded-full bg-emerald-500/20 mb-2 overflow-hidden">
+            <div className="h-2.5 rounded-full bg-emerald-500 w-full" />
+          </div>
+        )}
 
         {currentPlan === 'free' && (
           <div className="mt-4 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-amber-300/80 text-xs">

@@ -25,6 +25,8 @@ class UserManager(BaseUserManager):
 
 class User(AbstractUser):
     PLAN_FREE    = 'free'
+    PLAN_PAID    = 'paid'   # single paid tier — credits-only model, full feature access
+    # Legacy tier names kept for backwards-compat with existing accounts.
     PLAN_STARTER = 'starter'
     PLAN_GROWTH  = 'growth'
     PLAN_PRO     = 'pro'
@@ -32,6 +34,7 @@ class User(AbstractUser):
 
     PLAN_CHOICES = [
         (PLAN_FREE,       'Free'),
+        (PLAN_PAID,       'Paid'),
         (PLAN_STARTER,    'Starter'),
         (PLAN_GROWTH,     'Growth'),
         (PLAN_PRO,        'Pro'),
@@ -90,11 +93,17 @@ class User(AbstractUser):
         return dict(self.PLAN_CHOICES).get(self.plan, self.plan)
 
     @property
+    def is_paid(self):
+        """True for any non-free account (credits-only model — no tiers)."""
+        return self.plan != self.PLAN_FREE
+
+    @property
     def subscription_active(self):
-        """Free plan always active. Paid plans require a non-expired subscription_expires_at."""
-        if self.plan == self.PLAN_FREE:
-            return True
-        return bool(self.subscription_expires_at and self.subscription_expires_at >= timezone.now())
+        """
+        Credits-only model: accounts never expire or pause. Credits are the only
+        spendable resource. Always active so nothing is ever locked.
+        """
+        return True
 
 
 class APIKey(models.Model):

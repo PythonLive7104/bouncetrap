@@ -18,16 +18,11 @@ class SubscriptionExpired(Exception):
 def deduct_credits(user_id: int | str, amount: int, operation: str = 'used', reference: str = '') -> int:
     """
     Atomically deduct `amount` credits from user.
-    Raises SubscriptionExpired if paid plan has no active subscription.
+    Credits-only model — no subscription expiry, credits never lock.
     Raises InsufficientCredits if balance is too low.
     Returns the new balance.
     """
     user = User.objects.select_for_update().get(pk=user_id)
-
-    if not user.subscription_active:
-        raise SubscriptionExpired(
-            'Subscription expired. Renew your plan to continue using your credits.'
-        )
 
     if user.credits < amount:
         raise InsufficientCredits(

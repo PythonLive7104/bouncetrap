@@ -41,50 +41,6 @@ function EmailVerificationBanner({ user, setUser }) {
   )
 }
 
-function SubscriptionBanner({ active, expiresAt, plan }) {
-  if (!plan || plan === 'free') return null
-
-  const now     = new Date()
-  const expiry  = expiresAt ? new Date(expiresAt) : null
-  const daysLeft = expiry ? Math.ceil((expiry - now) / (1000 * 60 * 60 * 24)) : null
-
-  if (!active || (expiry && expiry <= now)) {
-    return (
-      <div className="mx-4 md:mx-8 mt-6 px-5 py-4 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-start gap-3">
-        <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-        </svg>
-        <div className="flex-1 min-w-0">
-          <p className="text-red-300 font-semibold text-sm">Subscription expired</p>
-          <p className="text-red-400/70 text-xs mt-0.5">
-            Your credits are preserved and will be unlocked when you renew.{' '}
-            <NavLink to="/dashboard/billing" className="underline text-red-300 hover:text-red-200">Renew now</NavLink>
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  if (daysLeft !== null && daysLeft <= 7) {
-    return (
-      <div className="mx-4 md:mx-8 mt-6 px-5 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3">
-        <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div className="flex-1 min-w-0">
-          <p className="text-amber-300 font-semibold text-sm">Subscription expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</p>
-          <p className="text-amber-400/70 text-xs mt-0.5">
-            Renew before {expiry.toLocaleDateString()} to keep uninterrupted access.{' '}
-            <NavLink to="/dashboard/billing" className="underline text-amber-300 hover:text-amber-200">Renew now</NavLink>
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
-
 const NAV = [
   {
     to: '/dashboard',
@@ -243,7 +199,9 @@ const PAGE_TITLE = {
 }
 
 function SidebarContent({ user, credits, onNavClick, onLogout }) {
-  const planLimit = { free: 100, starter: 25000, growth: 100000, pro: 200000 }[user?.plan] || 100
+  const isFree    = (user?.plan || 'free') === 'free'
+  const planLimit = 100  // free trial baseline for the progress bar
+  const barPct    = isFree ? Math.min((credits / planLimit) * 100, 100) : 100
 
   return (
     <>
@@ -286,10 +244,12 @@ function SidebarContent({ user, credits, onNavClick, onLogout }) {
         <div className="w-full h-1.5 rounded-full bg-white/8">
           <div
             className="h-1.5 rounded-full bg-brand-500 transition-all"
-            style={{ width: `${Math.min((credits / planLimit) * 100, 100)}%` }}
+            style={{ width: `${barPct}%` }}
           />
         </div>
-        <p className="text-xs text-slate-600 mt-1.5">of {planLimit.toLocaleString()} total</p>
+        <p className="text-xs text-slate-600 mt-1.5">
+          {isFree ? `of ${planLimit} free credits` : 'available · never expire'}
+        </p>
       </div>
 
       {/* User footer */}
@@ -320,7 +280,7 @@ function SidebarContent({ user, credits, onNavClick, onLogout }) {
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, credits, logout, subscriptionActive, subscriptionExpiresAt, setUser } = useAuthStore()
+  const { user, credits, logout, setUser } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const pageTitle = PAGE_TITLE[location.pathname] || 'Dashboard'
@@ -385,11 +345,6 @@ export default function DashboardLayout() {
         </header>
 
         <EmailVerificationBanner user={user} setUser={setUser} />
-        <SubscriptionBanner
-          active={subscriptionActive}
-          expiresAt={subscriptionExpiresAt}
-          plan={user?.plan}
-        />
         <div className="p-4 md:p-8">
           <Outlet />
         </div>

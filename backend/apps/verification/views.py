@@ -27,13 +27,8 @@ from apps.billing.models import CreditLedger
 
 FREE_PLAN_DAILY_LIMIT = 20  # verifications per day for free plan users
 
-PLAN_ROW_LIMITS = {
-    'free':       20,
-    'starter':    5_000,
-    'growth':     50_000,
-    'pro':        500_000,
-    'enterprise': 500_000,
-}
+# Credits-only model: free trial capped at 20 rows/job; paid limited by credits.
+PLAN_ROW_LIMITS = {'free': 20, 'paid': 1_000_000}
 
 
 def _free_plan_daily_used(user) -> int:
@@ -167,13 +162,6 @@ class BulkUploadView(APIView):
                     },
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
-
-        # Block expired subscriptions
-        if not request.user.subscription_active:
-            return Response(
-                {'detail': 'Your subscription has expired. Renew your plan to unlock your credits.'},
-                status=status.HTTP_402_PAYMENT_REQUIRED,
-            )
 
         serializer = BulkUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -732,9 +720,9 @@ class BulkJobReportView(APIView):
     """GET /api/v1/verify/jobs/{id}/report/ — Download PDF health report (Growth+ only)."""
 
     def get(self, request, pk):
-        if request.user.plan not in REPORT_PLAN_REQUIRED:
+        if request.user.plan == 'free':
             return Response(
-                {'detail': 'PDF reports require Growth plan or above.'},
+                {'detail': 'PDF reports require credits. Purchase credits to unlock.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         try:

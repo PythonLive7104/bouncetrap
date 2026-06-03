@@ -128,8 +128,8 @@ const FAQS = [
     a: 'A catch-all domain accepts all incoming emails regardless of whether the individual mailbox exists. BounceTrap detects catch-all domains and marks those addresses as "risky" rather than "valid" to protect your sender reputation.',
   },
   {
-    q: "Can I cancel my subscription at any time?",
-    a: "Yes. Cancel or downgrade at any time from your billing page — no lock-in contracts or cancellation fees. Your credit balance never expires: unused credits are preserved when your subscription lapses and become available again the moment you renew.",
+    q: "Do my credits expire?",
+    a: "Never. BounceTrap is pay-as-you-go — you buy credits and use them whenever you want. There's no monthly subscription, no renewals, and no account pausing. Your balance stays put until you spend it.",
   },
 ]
 
@@ -738,7 +738,7 @@ export default function LandingPage() {
               </p>
             )}
 
-            {/* Credits vs subscription clarification */}
+            {/* Credits clarification */}
             <div className="mt-6 mx-auto max-w-2xl rounded-2xl bg-white/[0.03] border border-white/8 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 text-sm">
               <div className="flex items-center gap-2 shrink-0">
                 <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -747,8 +747,8 @@ export default function LandingPage() {
                 <span className="text-white font-semibold">How credits work</span>
               </div>
               <p className="text-slate-400 leading-relaxed">
-                <span className="text-white font-medium">Credits never expire</span> — your balance carries over when you renew.
-                What expires is your <span className="text-white font-medium">30-day usage window</span>: credits can only be spent while your subscription is active. Renew any time to unlock your balance again.
+                <span className="text-white font-medium">Pay-as-you-go, no subscription.</span> Buy credits once and spend them whenever you like — they
+                <span className="text-white font-medium"> never expire</span> and your account is <span className="text-white font-medium">never paused</span>. Top up any time.
               </p>
             </div>
 

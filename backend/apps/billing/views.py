@@ -4,6 +4,7 @@ import json
 import logging
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db.models import Sum
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -24,6 +25,7 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 CREDIT_PACKS = [
@@ -379,21 +381,17 @@ class NowPaymentsWebhookView(APIView):
             user          = invoice.user
             user.credits += invoice.credits_to_add
 
+            # Credits-only model: every purchase just tops up credits and unlocks
+            # full feature access (plan='paid'). Nothing ever expires.
             if invoice.invoice_type == NowPaymentsInvoice.TYPE_PACK:
-                user.save(update_fields=['credits'])
+                if user.plan == 'free':
+                    user.plan = User.PLAN_PAID
+                user.save(update_fields=['plan', 'credits'])
                 notes = f'Credit pack {invoice.plan} via crypto'
             else:
-                # Yearly plans get 365 days; monthly plans get 30 days
-                days = 365 if invoice.billing_period == 'yearly' else 30
-                user.plan = invoice.plan
-                now = timezone.now()
-                current_expiry = user.subscription_expires_at
-                if current_expiry and current_expiry > now:
-                    user.subscription_expires_at = current_expiry + timedelta(days=days)
-                else:
-                    user.subscription_expires_at = now + timedelta(days=days)
-                user.save(update_fields=['plan', 'credits', 'subscription_expires_at'])
-                notes = f'{invoice.plan} {invoice.billing_period} via crypto ({payment_status})'
+                user.plan = User.PLAN_PAID
+                user.save(update_fields=['plan', 'credits'])
+                notes = f'{invoice.credits_to_add:,} credits via crypto ({payment_status})'
 
             CreditLedger.objects.create(
                 user          = user,
