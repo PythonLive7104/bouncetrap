@@ -41,6 +41,7 @@ LOCAL_APPS = [
     'apps.billing',
     'apps.deliverability',
     'apps.teams',
+    'apps.support',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -137,6 +138,8 @@ REST_FRAMEWORK = {
         'starter': '600/min',
         'growth':  '3000/min',
         'pro':     '12000/min',
+        'support_chat':    '20/min',
+        'support_contact': '5/min',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -223,6 +226,9 @@ KICKBOX_API_KEY     = config('KICKBOX_API_KEY', default='')
 GOOGLE_CLIENT_ID      = config('GOOGLE_CLIENT_ID', default='')
 GOOGLE_CLIENT_SECRET  = config('GOOGLE_CLIENT_SECRET', default='')
 OPENAI_API_KEY        = config('OPENAI_API_KEY', default='')
+
+# Where contact-form submissions are emailed (falls back to DEFAULT_FROM_EMAIL)
+CONTACT_EMAIL         = config('CONTACT_EMAIL', default='')
 GITHUB_CLIENT_ID      = config('GITHUB_CLIENT_ID', default='')
 GITHUB_CLIENT_SECRET  = config('GITHUB_CLIENT_SECRET', default='')
 

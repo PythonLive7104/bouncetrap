@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/v1/billing/',       include('apps.billing.urls')),
     path('api/v1/deliverability/', include('apps.deliverability.urls')),
     path('api/v1/teams/',          include('apps.teams.urls')),
+    path('api/v1/support/',        include('apps.support.urls')),
 
     # OpenAPI docs
     path('api/schema/',        SpectacularAPIView.as_view(),                    name='schema'),

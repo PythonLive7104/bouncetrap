@@ -10,6 +10,7 @@ import GoogleCallbackPage from './components/auth/GoogleCallbackPage'
 import ConfirmEmailPage from './components/auth/ConfirmEmailPage'
 import BlogIndexPage from './components/blog/BlogIndexPage'
 import BlogPostPage from './components/blog/BlogPostPage'
+import ChatWidget from './components/support/ChatWidget'
 import DashboardLayout from './components/dashboard/DashboardLayout'
 import DashboardOverview from './components/dashboard/DashboardOverview'
 import VerifyEmailPage from './components/dashboard/VerifyEmailPage'
@@ -76,6 +77,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ChatWidget />
       </BrowserRouter>
     </QueryClientProvider>
   )
