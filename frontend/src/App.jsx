@@ -8,6 +8,8 @@ import ForgotPasswordPage from './components/auth/ForgotPasswordPage'
 import GitHubCallbackPage from './components/auth/GitHubCallbackPage'
 import GoogleCallbackPage from './components/auth/GoogleCallbackPage'
 import ConfirmEmailPage from './components/auth/ConfirmEmailPage'
+import BlogIndexPage from './components/blog/BlogIndexPage'
+import BlogPostPage from './components/blog/BlogPostPage'
 import DashboardLayout from './components/dashboard/DashboardLayout'
 import DashboardOverview from './components/dashboard/DashboardOverview'
 import VerifyEmailPage from './components/dashboard/VerifyEmailPage'
@@ -46,6 +48,8 @@ export default function App() {
           <Route path="/auth/github/callback" element={<GitHubCallbackPage />} />
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
           <Route path="/verify-email" element={<ConfirmEmailPage />} />
+          <Route path="/blog" element={<BlogIndexPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route
             path="/dashboard"
             element={
