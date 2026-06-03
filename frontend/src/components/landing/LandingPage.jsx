@@ -413,6 +413,13 @@ export default function LandingPage() {
                   {l}
                 </a>
               ))}
+              <Link
+                to="/blog"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2.5 text-sm text-slate-300 hover:text-white transition-colors"
+              >
+                Blog
+              </Link>
               <div className="pt-3 border-t border-white/6 flex flex-col gap-2">
                 {isAuthenticated ? (
                   <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-lg text-sm transition-colors">
