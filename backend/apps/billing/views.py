@@ -362,11 +362,13 @@ class NowPaymentsWebhookView(APIView):
         from datetime import timedelta
         from django.db import transaction
 
-        # Map NOWPayments payment_status → our invoice status
+        # Map NOWPayments payment_status → our invoice status.
+        # partially_paid (tiny underpayment, e.g. 0.00001 short) is treated as a
+        # completed payment: marked finished and credited in full.
         INVOICE_STATUS_MAP = {
-            'finished':      NowPaymentsInvoice.STATUS_FINISHED,
-            'confirmed':     NowPaymentsInvoice.STATUS_CONFIRMED,
-            'partially_paid': NowPaymentsInvoice.STATUS_CONFIRMED,
+            'finished':       NowPaymentsInvoice.STATUS_FINISHED,
+            'confirmed':      NowPaymentsInvoice.STATUS_CONFIRMED,
+            'partially_paid': NowPaymentsInvoice.STATUS_FINISHED,
         }
         new_invoice_status = INVOICE_STATUS_MAP.get(payment_status, NowPaymentsInvoice.STATUS_CONFIRMED)
 
