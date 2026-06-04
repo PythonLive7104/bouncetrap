@@ -362,6 +362,7 @@ export default function LandingPage() {
               {[['Features', '#features'], ['Pricing', '#pricing'], ['Rewards', '#rewards'], ['API', '#api'], ['FAQ', '#faq']].map(([l, h]) => (
                 <a key={l} href={h} className="text-sm text-slate-400 hover:text-white transition-colors">{l}</a>
               ))}
+              <Link to="/tools" className="text-sm text-slate-400 hover:text-white transition-colors">Free Tools</Link>
               <Link to="/blog" className="text-sm text-slate-400 hover:text-white transition-colors">Blog</Link>
             </div>
 
@@ -898,8 +899,12 @@ export default function LandingPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-4">Product</p>
                 <ul className="space-y-2.5">
-                  {[['Features', '#features'], ['Pricing', '#pricing'], ['API docs', '#api'], ['Changelog', '#']].map(([l, h]) => (
-                    <li key={l}><a href={h} className="text-sm text-slate-400 hover:text-white transition-colors">{l}</a></li>
+                  {[['Features', '#features'], ['Pricing', '#pricing'], ['API docs', '#api'], ['Free Tools', '/tools'], ['Blog', '/blog']].map(([l, h]) => (
+                    <li key={l}>
+                      {h.startsWith('/')
+                        ? <Link to={h} className="text-sm text-slate-400 hover:text-white transition-colors">{l}</Link>
+                        : <a href={h} className="text-sm text-slate-400 hover:text-white transition-colors">{l}</a>}
+                    </li>
                   ))}
                 </ul>
               </div>

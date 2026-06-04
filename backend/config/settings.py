@@ -140,6 +140,7 @@ REST_FRAMEWORK = {
         'pro':     '12000/min',
         'support_chat':    '20/min',
         'support_contact': '5/min',
+        'public_tool':     '30/min',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,

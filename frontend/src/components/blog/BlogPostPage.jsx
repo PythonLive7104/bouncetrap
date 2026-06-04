@@ -103,6 +103,30 @@ export default function BlogPostPage() {
           {/* Intro */}
           <p className="text-lg text-slate-300 leading-relaxed mb-10">{post.intro}</p>
 
+          {/* Comparison table (optional) */}
+          {post.comparisonTable && (
+            <div className="mb-10 overflow-x-auto rounded-2xl border border-white/8">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/[0.04]">
+                    {post.comparisonTable.columns.map((c, i) => (
+                      <th key={i} className={`text-left font-semibold px-4 py-3 ${i === 1 ? 'text-brand-300' : 'text-slate-300'}`}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {post.comparisonTable.rows.map((row, i) => (
+                    <tr key={i} className="border-t border-white/6">
+                      {row.map((cell, j) => (
+                        <td key={j} className={`px-4 py-3 align-top ${j === 0 ? 'text-slate-400 font-medium' : j === 1 ? 'text-white' : 'text-slate-400'}`}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Sections */}
           {post.sections.map((s, i) => (
             <section key={i} className="mb-10">

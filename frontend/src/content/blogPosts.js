@@ -1,7 +1,10 @@
 // SEO blog content. Each post targets one primary keyword.
 // Rendered by BlogPostPage with Article + FAQPage JSON-LD structured data.
+import { COMPETITORS } from './competitors'
+import { DELIVERABILITY_CLUSTER } from './deliverabilityCluster'
 
 export const BLOG_POSTS = [
+  ...DELIVERABILITY_CLUSTER,
   {
     slug: 'email-verification-tool',
     keyword: 'Email Verification Tool',
@@ -408,7 +411,296 @@ export const BLOG_POSTS = [
       },
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Comparison + alternative pages — generated from competitor data (commercial)
+  // ─────────────────────────────────────────────────────────────────────────
+  ...COMPETITORS.map(makeComparison),
+  ...COMPETITORS.filter((c) => !c.threeWay).map(makeAlternative),
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // High-intent how-to / best-of articles
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    slug: 'how-to-reduce-email-bounce-rate',
+    keyword: 'Reduce Email Bounce Rate',
+    title: 'How to Reduce Your Email Bounce Rate (Step by Step) | BounceTrap',
+    metaDescription: 'Learn how to reduce your email bounce rate below 2%. Practical steps to clean your list, fix authentication and stop hard bounces. Start free.',
+    h1: 'How to Reduce Your Email Bounce Rate',
+    readTime: '6 min read',
+    publishedAt: '2026-06-03',
+    intro: 'A high bounce rate quietly destroys your sender reputation and gets your emails filtered to spam. Most email platforms warn or suspend senders above 2–5%. Here are the practical steps to get your bounce rate down — and keep it there.',
+    sections: [
+      {
+        heading: 'Step 1: Verify your list before every send',
+        paragraphs: [
+          'The single biggest cause of bounces is sending to invalid addresses. Running your list through an email verifier before each campaign removes the addresses that would hard bounce — instantly lowering your bounce rate.',
+        ],
+        list: [
+          'Verify new sign-ups in real time via API',
+          'Bulk-verify your full list before major sends',
+          'Remove invalid, disposable and role-based addresses',
+        ],
+      },
+      {
+        heading: 'Step 2: Use double opt-in',
+        paragraphs: ['Double opt-in confirms an address is real and wanted at the moment of signup, stopping typos and fake addresses from ever entering your list.'],
+      },
+      {
+        heading: 'Step 3: Authenticate your domain',
+        paragraphs: ['Set up SPF, DKIM and DMARC so receiving servers trust your mail. Poor authentication causes soft bounces and spam filtering even when addresses are valid.'],
+      },
+      {
+        heading: 'Step 4: Keep your list fresh',
+        paragraphs: ['Re-verify quarterly and remove long-inactive subscribers. Lists decay about 22% per year as people change jobs and abandon inboxes.'],
+      },
+    ],
+    faqs: [
+      { q: 'What is a good email bounce rate?', a: 'Under 2% is healthy. Above 5% puts your sender reputation and account standing at risk.' },
+      { q: 'How quickly can I lower my bounce rate?', a: 'Immediately — verifying and cleaning your list before your next send removes the invalid addresses that bounce, so the very next campaign improves.' },
+    ],
+  },
+  {
+    slug: 'how-to-verify-email-without-sending',
+    keyword: 'Verify Email Without Sending',
+    title: 'How to Verify an Email Address Without Sending an Email | BounceTrap',
+    metaDescription: 'Verify whether an email address is valid without sending anything. Learn how MX and SMTP checks confirm a mailbox safely. Try free.',
+    h1: 'How to Verify an Email Without Sending an Email',
+    readTime: '5 min read',
+    publishedAt: '2026-06-03',
+    intro: 'You can confirm whether an email address is real and deliverable without ever sending a message to it. This protects the recipient from contact and protects you from bounces. Here is how it works.',
+    sections: [
+      {
+        heading: 'The checks that happen behind the scenes',
+        paragraphs: ['Email verification simulates the delivery path without completing it. It validates the format, confirms the domain can receive mail, and opens an SMTP conversation to test the specific mailbox — then stops before any message is delivered.'],
+        list: [
+          'Syntax check — is the address correctly formed?',
+          'MX lookup — does the domain have mail servers?',
+          'SMTP handshake — does the mailbox accept mail?',
+          'Disposable & role checks — is it risky?',
+        ],
+      },
+      {
+        heading: 'Why this is safe',
+        paragraphs: ['Because the process never issues the final DATA command that delivers a message, the mailbox owner is never notified. You get a valid / invalid / risky verdict without touching their inbox.'],
+      },
+    ],
+    faqs: [
+      { q: 'Does the person know I verified their email?', a: 'No. Verification stops before any message is delivered, so the recipient is never contacted or notified.' },
+      { q: 'How accurate is verification without sending?', a: 'Very — BounceTrap reaches over 98% accuracy on deliverable addresses using MX and SMTP checks.' },
+    ],
+  },
+  {
+    slug: 'how-to-clean-a-mailchimp-list',
+    keyword: 'Clean Mailchimp List',
+    title: 'How to Clean Your Mailchimp List & Cut Bounces | BounceTrap',
+    metaDescription: 'Clean your Mailchimp list before sending to lower bounces and protect your sender reputation. Step-by-step export, verify and re-import guide.',
+    h1: 'How to Clean Your Mailchimp List',
+    readTime: '5 min read',
+    publishedAt: '2026-06-03',
+    intro: 'Mailchimp charges by contact and penalises high bounce rates, so a dirty list costs you twice. Cleaning it before you send keeps costs down and deliverability up. Here is the simple process.',
+    sections: [
+      {
+        heading: 'Step 1: Export your audience',
+        paragraphs: ['In Mailchimp, go to Audience → All contacts → Export Audience. You\'ll get a CSV with your subscribers\' email addresses.'],
+      },
+      {
+        heading: 'Step 2: Verify the list',
+        paragraphs: ['Upload the CSV to BounceTrap\'s bulk verifier. It auto-detects the email column, deduplicates, and verifies every address in parallel, returning a downloadable file with a status for each.'],
+      },
+      {
+        heading: 'Step 3: Remove the bad addresses',
+        paragraphs: ['Filter out everything marked invalid (and optionally risky), then re-import only the valid addresses. Archive or unsubscribe the invalids in Mailchimp so you stop paying for and sending to them.'],
+        list: [
+          'Remove invalid (hard bounce) addresses',
+          'Review risky / catch-all addresses',
+          'Keep valid addresses and re-import',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Will cleaning my Mailchimp list save money?', a: 'Yes — Mailchimp bills by contact count, so removing dead addresses lowers your bill and improves deliverability at the same time.' },
+      { q: 'How often should I clean my Mailchimp list?', a: 'Before major campaigns and at least quarterly, plus verifying new signups in real time to keep it clean continuously.' },
+    ],
+  },
+  {
+    slug: 'best-email-verification-software',
+    keyword: 'Best Email Verification Software',
+    title: 'Best Email Verification Software in 2026 (Compared) | BounceTrap',
+    metaDescription: 'The best email verification software compared on accuracy, pricing and features. See what to look for and why credits that never expire matter.',
+    h1: 'Best Email Verification Software in 2026',
+    readTime: '6 min read',
+    publishedAt: '2026-06-03',
+    intro: 'The best email verification software accurately removes invalid addresses, is affordable, and ideally bundles deliverability tools. Here\'s what to look for — and how BounceTrap stacks up.',
+    sections: [
+      {
+        heading: 'What to look for',
+        paragraphs: ['Not all verifiers are equal. The features that actually matter for results and cost are:'],
+        list: [
+          'Accuracy — a multi-step engine that confirms the real mailbox',
+          'Pricing — pay-as-you-go beats expiring subscription credits',
+          'Bulk + API — clean lists and verify signups in real time',
+          'Deliverability tools — SPF/DKIM/DMARC and blacklist checks',
+          'A real free trial to test accuracy first',
+        ],
+      },
+      {
+        heading: 'Why BounceTrap stands out',
+        paragraphs: ['BounceTrap combines a 98%+ accurate 10-step engine with pay-as-you-go credits that never expire, a full deliverability suite, an email finder, and a REST API. New accounts get 100 free credits with no card — so you can verify accuracy before paying.'],
+      },
+      {
+        heading: 'The pricing trap to avoid',
+        paragraphs: ['Many tools sell monthly plans where unused credits expire. If your sending is seasonal or bursty, you lose what you paid for. Pay-as-you-go credits that never expire avoid this entirely.'],
+      },
+    ],
+    faqs: [
+      { q: 'What is the most accurate email verification software?', a: 'Look for tools using a full SMTP/mailbox check, not just syntax. BounceTrap\'s 10-step engine reaches 98%+ accuracy on deliverable addresses.' },
+      { q: 'Is there free email verification software?', a: 'BounceTrap gives 100 free credits on signup with no card, enough to test single and bulk verification.' },
+    ],
+  },
+  {
+    slug: 'best-email-verification-api',
+    keyword: 'Best Email Verification API',
+    title: 'Best Email Verification API for Developers (2026) | BounceTrap',
+    metaDescription: 'Compare email verification APIs on accuracy, latency and pricing. Verify signups in real time and block fake emails. Free API key, 100 credits.',
+    h1: 'Best Email Verification API for Developers',
+    readTime: '5 min read',
+    publishedAt: '2026-06-03',
+    intro: 'An email verification API lets you check addresses in real time — at signup, at checkout, or anywhere a user enters an email. Here\'s what makes a great verification API and how to integrate one fast.',
+    sections: [
+      {
+        heading: 'What makes a good verification API',
+        paragraphs: ['For real-time use, the API has to be fast, accurate and simple to integrate.'],
+        list: [
+          'Low latency for inline signup validation',
+          'Clear verdicts (valid / invalid / risky) plus a score',
+          'Disposable and role-based detection',
+          'Webhooks for async bulk jobs',
+          'Transparent, pay-as-you-go pricing',
+        ],
+      },
+      {
+        heading: 'Block fake signups at the source',
+        paragraphs: ['Dropping the API into your signup form rejects disposable and invalid addresses before they enter your database — cutting fake trials, improving data quality and protecting your sender reputation.'],
+      },
+      {
+        heading: 'Get started free',
+        paragraphs: ['BounceTrap offers a REST API with a free key and 100 credits to start. Verify a single address with one request and get back a full result including MX, SMTP status, disposable flags and a deliverability score.'],
+      },
+    ],
+    faqs: [
+      { q: 'How fast is an email verification API?', a: 'A single real-time verification typically returns in well under a second, fast enough for inline signup-form validation.' },
+      { q: 'Can I verify emails in bulk via the API?', a: 'Yes — submit a bulk job and receive results via webhook when it completes, in addition to single real-time checks.' },
+    ],
+  },
 ]
+
+// ── Programmatic generators (hoisted) ───────────────────────────────────────
+// Each uses the competitor's unique blurb/angle so pages are differentiated.
+
+function makeComparison(c) {
+  const three = c.threeWay
+  return {
+    slug: three ? c.slug : `${c.slug}-vs-bouncetrap`,
+    keyword: three ? c.name : `${c.name} vs BounceTrap`,
+    title: three
+      ? `${c.name}: Compared (and a Simpler Alternative) | BounceTrap`
+      : `${c.name} vs BounceTrap: Which Email Verifier Wins in 2026?`,
+    metaDescription: three
+      ? `${c.name} compared — plus BounceTrap, a pay-as-you-go alternative whose credits never expire. Start free with 100 credits.`
+      : `${c.name} vs BounceTrap compared on pricing, accuracy, bulk verification and deliverability tools. BounceTrap credits never expire — start free with 100 credits.`,
+    h1: three ? `${c.name} — and a Simpler Alternative` : `${c.name} vs BounceTrap`,
+    readTime: '5 min read',
+    publishedAt: '2026-06-03',
+    intro: `${c.name} is ${c.blurb} If you're weighing it up, the question is whether you want a verification-plus-deliverability platform with no subscription and credits that never expire. That's where BounceTrap differs — particularly around ${c.angle}. Here's an honest comparison.`,
+    comparisonTable: {
+      columns: ['', 'BounceTrap', three ? 'Typical competitor' : c.name],
+      rows: [
+        ['Pricing model', 'Pay-as-you-go credits', 'Plans / credit packs'],
+        ['Do credits expire?', 'Never', 'Varies by plan'],
+        ['Free to start', '100 credits, no card', 'Limited free trial'],
+        ['Bulk verification', 'Yes — parallel, auto-dedup', 'Yes'],
+        ['Deliverability suite (SPF/DKIM/DMARC, blacklist)', 'Included free', 'Limited / add-on'],
+        ['Email finder', 'Yes', 'Varies'],
+        ['REST API & webhooks', 'Yes', 'Yes'],
+        ['Loyalty rewards', '10 purchases = 25,000 free credits', 'No'],
+      ],
+    },
+    sections: [
+      {
+        heading: `Pricing and the expiry question`,
+        paragraphs: [
+          `The clearest structural difference is pricing. BounceTrap credits are pay-as-you-go and never expire — buy what you need, use it whenever. A common frustration with tools like ${c.name} is ${c.angle}, which can mean paying for credits you lose or a subscription you don't fully use.`,
+          `Pricing changes often, so check each provider's current rates. BounceTrap's promise stays constant: no subscription, no expiry, and 100 free credits to test before you spend anything.`,
+        ],
+      },
+      {
+        heading: 'Accuracy and the verification engine',
+        paragraphs: [
+          `Both ${c.name} and BounceTrap run multi-step validation — syntax, MX, disposable detection and mailbox checks. BounceTrap's 10-step hybrid engine reaches over 98% accuracy on deliverable addresses and returns a verdict plus a 0–100 deliverability score for every address. The fairest test is to run the same sample list through both — BounceTrap's free credits make that easy.`,
+        ],
+      },
+      {
+        heading: 'More than verification',
+        paragraphs: [
+          `Where ${c.name} focuses primarily on verification, BounceTrap bundles a full deliverability suite most tools charge extra for: SPF/DKIM/DMARC checks, MX health, blacklist monitoring, domain reputation, SMTP testing and an AI deliverability advisor. If inbox placement matters to you — not just a clean list — that's a meaningful difference.`,
+        ],
+      },
+    ],
+    faqs: [
+      { q: `Is BounceTrap a good ${c.name} alternative?`, a: `Yes — BounceTrap covers the same core verification job with pay-as-you-go credits that never expire, plus a bundled deliverability suite. Start free with 100 credits to compare directly.` },
+      { q: `Can I try BounceTrap before switching from ${c.name}?`, a: `Yes. Sign up free, get 100 credits with no card, and run a sample of your list to compare accuracy before you commit.` },
+    ],
+  }
+}
+
+function makeAlternative(c) {
+  return {
+    slug: `${c.slug}-alternative`,
+    keyword: `${c.name} Alternative`,
+    title: `Best ${c.name} Alternative in 2026 — BounceTrap`,
+    metaDescription: `Looking for a ${c.name} alternative? BounceTrap offers accurate email verification with credits that never expire, a full deliverability suite, and 100 free credits. No subscription.`,
+    h1: `The Best ${c.name} Alternative`,
+    readTime: '4 min read',
+    publishedAt: '2026-06-03',
+    intro: `${c.name} is ${c.blurb} If you're looking for an alternative, it's usually about cost, ${c.angle}, or wanting more than verification in one place. BounceTrap is a strong alternative: pay-as-you-go credits that never expire, an all-in-one deliverability suite, and 100 free credits to start — no card, no subscription.`,
+    comparisonTable: {
+      columns: ['', 'BounceTrap', c.name],
+      rows: [
+        ['Credits expire?', 'Never', 'Varies by plan'],
+        ['Subscription required?', 'No — pay-as-you-go', 'Often'],
+        ['Free credits', '100 on signup', 'Limited trial'],
+        ['Deliverability suite included', 'Yes (SPF/DKIM/DMARC, blacklist, more)', 'Limited'],
+        ['Bulk + API', 'Yes', 'Yes'],
+      ],
+    },
+    sections: [
+      {
+        heading: `Why people switch from ${c.name}`,
+        paragraphs: [
+          `The usual reasons people seek a ${c.name} alternative are cost, ${c.angle}, and wanting deliverability tools alongside verification. BounceTrap addresses all three.`,
+        ],
+        list: [
+          'Credits never expire — your balance is always there when you need it',
+          'No monthly subscription — buy credits as you go',
+          '100 free credits to test accuracy before you pay',
+          'SPF/DKIM/DMARC, blacklist and reputation tools included free',
+          'Loyalty rewards: 10 purchases earns 25,000 free credits',
+        ],
+      },
+      {
+        heading: 'Same job, done accurately',
+        paragraphs: [
+          `BounceTrap verifies through a 10-step hybrid engine with 98%+ accuracy on deliverable addresses, supports bulk CSV upload with auto-deduplication, and offers a REST API — everything you rely on ${c.name} for, without the subscription lock-in.`,
+        ],
+      },
+    ],
+    faqs: [
+      { q: `Is there a free ${c.name} alternative?`, a: `Yes — BounceTrap gives every new account 100 free credits with no card required, so you can verify a sample list and compare results before paying.` },
+      { q: `How do I migrate from ${c.name}?`, a: `Export your list as a CSV, upload it to BounceTrap's bulk verifier, and download the cleaned results. No integration work needed to get started.` },
+    ],
+  }
+}
 
 export function getPostBySlug(slug) {
   return BLOG_POSTS.find((p) => p.slug === slug)

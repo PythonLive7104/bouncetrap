@@ -12,7 +12,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import AnonRateThrottle
+
+
+class PublicToolThrottle(AnonRateThrottle):
+    scope = 'public_tool'
+    rate = '30/min'
 
 
 # ── FR-DELIV-02 — DMARC / SPF / DKIM Checker ─────────────────────────────
@@ -61,7 +67,10 @@ def _check_dkim(domain: str, selector: str = 'default') -> dict:
 
 
 class DmarcSpfDkimView(APIView):
-    """GET /api/v1/deliverability/dns-check/?domain=example.com — FR-DELIV-02."""
+    """GET /api/v1/deliverability/dns-check/?domain=example.com — FR-DELIV-02. Public tool."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [PublicToolThrottle]
 
     def get(self, request):
         domain = request.query_params.get('domain', '').strip().lower()
@@ -79,7 +88,10 @@ class DmarcSpfDkimView(APIView):
 # ── FR-DELIV-04 — Email Server / MX Health Check ─────────────────────────
 
 class MXHealthView(APIView):
-    """GET /api/v1/deliverability/mx-check/?domain=example.com — FR-DELIV-04."""
+    """GET /api/v1/deliverability/mx-check/?domain=example.com — FR-DELIV-04. Public tool."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [PublicToolThrottle]
 
     def get(self, request):
         from apps.verification.services.dns_checker import get_mx_records
@@ -158,7 +170,10 @@ def _check_dnsbl(target: str, zone_info: dict) -> dict:
 
 
 class BlacklistCheckView(APIView):
-    """GET /api/v1/deliverability/blacklist/?domain=example.com — FR-DELIV-01."""
+    """GET /api/v1/deliverability/blacklist/?domain=example.com — FR-DELIV-01. Public tool."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [PublicToolThrottle]
 
     def get(self, request):
         domain = request.query_params.get('domain', '').strip().lower()

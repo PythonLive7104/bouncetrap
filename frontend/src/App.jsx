@@ -11,6 +11,11 @@ import ConfirmEmailPage from './components/auth/ConfirmEmailPage'
 import BlogIndexPage from './components/blog/BlogIndexPage'
 import BlogPostPage from './components/blog/BlogPostPage'
 import ChatWidget from './components/support/ChatWidget'
+import ToolsIndexPage from './components/tools/ToolsIndexPage'
+import ToolPage from './components/tools/ToolPage'
+import IndustryPage from './components/industries/IndustryPage'
+import ProviderPage from './components/programmatic/ProviderPage'
+import DisposableDomainsPage from './components/programmatic/DisposableDomainsPage'
 import DashboardLayout from './components/dashboard/DashboardLayout'
 import DashboardOverview from './components/dashboard/DashboardOverview'
 import VerifyEmailPage from './components/dashboard/VerifyEmailPage'
@@ -51,6 +56,11 @@ export default function App() {
           <Route path="/verify-email" element={<ConfirmEmailPage />} />
           <Route path="/blog" element={<BlogIndexPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="/tools" element={<ToolsIndexPage />} />
+          <Route path="/tools/:slug" element={<ToolPage />} />
+          <Route path="/email-verification-for/:slug" element={<IndustryPage />} />
+          <Route path="/verify-email/:slug" element={<ProviderPage />} />
+          <Route path="/disposable-email-domains" element={<DisposableDomainsPage />} />
           <Route
             path="/dashboard"
             element={
