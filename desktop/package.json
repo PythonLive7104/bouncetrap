@@ -1,0 +1,41 @@
+{
+  "name": "bouncetrap-desktop",
+  "productName": "BounceTrap",
+  "version": "1.0.0",
+  "description": "BounceTrap desktop app — verify emails with your API key.",
+  "main": "main.js",
+  "author": "BounceTrap",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "net.bouncetrap.desktop",
+    "productName": "BounceTrap",
+    "directories": { "output": "release" },
+    "files": ["main.js", "preload.js", "renderer/**/*", "package.json"],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility"
+    }
+  }
+}

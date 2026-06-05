@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>BounceTrap</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ── Setup screen (no API key yet) ─────────────────────────────── -->
+  <div id="setup" class="setup hidden">
+    <div class="setup-card">
+      <div class="brand"><img src="assets/icon.svg" alt="" class="logo" /> BounceTrap</div>
+      <h1>Connect your account</h1>
+      <p class="muted">Paste your API key to start verifying. Generate one from your BounceTrap dashboard → API Keys.</p>
+      <label>API Key</label>
+      <input id="setup-key" type="password" placeholder="bt_xxxxxxxxxxxxxxxx" />
+      <label>API URL <span class="muted">(advanced)</span></label>
+      <input id="setup-url" type="text" value="https://bouncetrap.net/api/v1" />
+      <div id="setup-error" class="error hidden"></div>
+      <button id="setup-connect" class="btn-primary">Connect</button>
+    </div>
+  </div>
+
+  <!-- ── Main app ──────────────────────────────────────────────────── -->
+  <div id="app" class="app hidden">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand"><img src="assets/icon.svg" alt="" class="logo" /> BounceTrap</div>
+      <div class="topbar-right">
+        <div class="credits-pill" id="credits-pill" title="Refresh balance">
+          <span class="credits-dot"></span>
+          <span id="credits-value">—</span> credits
+        </div>
+        <button id="btn-settings" class="icon-btn" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="single">Single Verify</button>
+      <button class="tab" data-tab="bulk">Bulk Jobs</button>
+    </nav>
+
+    <!-- Single verify -->
+    <section id="tab-single" class="tab-panel active">
+      <div class="row">
+        <input id="single-email" type="email" placeholder="Enter an email address to verify…" />
+        <button id="single-go" class="btn-primary">Verify</button>
+      </div>
+      <div id="single-error" class="error hidden"></div>
+      <div id="single-result" class="result hidden"></div>
+    </section>
+
+    <!-- Bulk -->
+    <section id="tab-bulk" class="tab-panel">
+      <div class="dropzone" id="dropzone">
+        <div class="dz-icon">⬆</div>
+        <p class="dz-title">Choose a CSV or TXT file</p>
+        <p class="muted">One email per line, or a CSV with an email column</p>
+        <button id="bulk-pick" class="btn-secondary">Browse file</button>
+        <div id="bulk-error" class="error hidden"></div>
+      </div>
+      <div class="jobs-header">
+        <h2>Jobs</h2>
+        <button id="jobs-refresh" class="btn-ghost">Refresh</button>
+      </div>
+      <div id="jobs-list" class="jobs-list">
+        <p class="muted empty">No jobs yet. Upload a file to start.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Settings</h2>
+      <label>API Key</label>
+      <input id="settings-key" type="password" />
+      <label>API URL</label>
+      <input id="settings-url" type="text" />
+      <div class="modal-actions">
+        <button id="settings-cancel" class="btn-ghost">Cancel</button>
+        <button id="settings-save" class="btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
