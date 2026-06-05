@@ -1,7 +1,7 @@
 {
   "name": "bouncetrap-desktop",
   "productName": "BounceTrap",
-  "version": "1.0.0",
+  "version": "1.7.5",
   "description": "BounceTrap desktop app — verify emails with your API key.",
   "main": "main.js",
   "author": "BounceTrap",

@@ -8,6 +8,10 @@ on:
       - 'desktop-v*'
   workflow_dispatch: {}   # also allow manual runs from the Actions tab
 
+# Required so the release job can create a Release and upload the installers
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
