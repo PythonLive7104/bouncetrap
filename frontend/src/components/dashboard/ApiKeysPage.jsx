@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '')
+const DESKTOP_RELEASES_URL = 'https://github.com/PythonLive7104/bouncetrap/releases/latest'
 
 function CopyButton({ text, size = 'md' }) {
   const [copied, setCopied] = useState(false)
@@ -181,19 +182,19 @@ console.log(data);`
       {/* Create form */}
       <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
         <h3 className="text-white font-semibold text-sm mb-4">Create a new key</h3>
-        <form onSubmit={handleCreate} className="flex gap-3">
+        <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Key name (e.g. Production, My App)"
             maxLength={64}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 transition-colors"
+            className="w-full sm:flex-1 px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 transition-colors"
           />
           <button
             type="submit"
             disabled={creating || !newName.trim()}
-            className="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all text-sm whitespace-nowrap"
+            className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all text-sm whitespace-nowrap"
           >
             {creating ? 'Creating…' : '+ Create key'}
           </button>
@@ -203,7 +204,7 @@ console.log(data);`
 
       {/* Keys list */}
       <div className="rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/6 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-white/6 flex items-center justify-between">
           <h3 className="text-white font-semibold text-sm">Active keys</h3>
           <span className="text-xs text-slate-500">{keys.length} key{keys.length !== 1 ? 's' : ''}</span>
         </div>
@@ -233,14 +234,14 @@ console.log(data);`
         ) : (
           <div className="divide-y divide-white/5">
             {keys.map((k) => (
-              <div key={k.id} className="px-6 py-4 flex items-center justify-between gap-4">
+              <div key={k.id} className="px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-white text-sm font-medium">{k.name}</p>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">Active</span>
+                    <p className="text-white text-sm font-medium truncate">{k.name}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium shrink-0">Active</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs font-mono text-slate-500">{k.prefix}{'•'.repeat(32)}</span>
+                  <div className="flex items-center gap-2 mt-1 min-w-0">
+                    <span className="text-xs font-mono text-slate-500 truncate">{k.prefix}{'•'.repeat(8)}</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-slate-600 flex-wrap">
                     <span>Created {new Date(k.created_at).toLocaleDateString()}</span>
@@ -315,12 +316,40 @@ console.log(data);`
                   <span className={`text-xs font-bold font-mono w-10 shrink-0 ${
                     method === 'GET' ? 'text-sky-400' : 'text-emerald-400'
                   }`}>{method}</span>
-                  <code className="text-xs font-mono text-slate-300 flex-1">{path}</code>
+                  <code className="text-xs font-mono text-slate-300 flex-1 truncate">{path}</code>
                   <span className="text-xs text-slate-600 hidden sm:block">{desc}</span>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Desktop app */}
+      <div className="rounded-2xl border border-brand-800/30 bg-brand-950/20 p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-brand-600/15 flex items-center justify-center shrink-0">
+            <svg className="w-6 h-6 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-white font-semibold text-sm">BounceTrap Desktop App</h3>
+            <p className="text-slate-400 text-xs mt-0.5">
+              Verify single emails and bulk lists from your desktop using your API key — with your live credit balance built in.
+            </p>
+          </div>
+          <a
+            href={DESKTOP_RELEASES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download app
+          </a>
         </div>
       </div>
     </div>
