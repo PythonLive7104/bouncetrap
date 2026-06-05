@@ -6,6 +6,10 @@
   "main": "main.js",
   "author": "BounceTrap",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PythonLive7104/bouncetrap.git"
+  },
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
