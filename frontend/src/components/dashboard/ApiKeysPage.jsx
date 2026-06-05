@@ -4,7 +4,6 @@ import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '')
-const DESKTOP_RELEASES_URL = 'https://github.com/PythonLive7104/bouncetrap/releases/latest'
 
 function CopyButton({ text, size = 'md' }) {
   const [copied, setCopied] = useState(false)
@@ -322,34 +321,6 @@ console.log(data);`
               ))}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Desktop app */}
-      <div className="rounded-2xl border border-brand-800/30 bg-brand-950/20 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-brand-600/15 flex items-center justify-center shrink-0">
-            <svg className="w-6 h-6 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-white font-semibold text-sm">BounceTrap Desktop App</h3>
-            <p className="text-slate-400 text-xs mt-0.5">
-              Verify single emails and bulk lists from your desktop using your API key — with your live credit balance built in.
-            </p>
-          </div>
-          <a
-            href={DESKTOP_RELEASES_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Download app
-          </a>
         </div>
       </div>
     </div>

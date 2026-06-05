@@ -5,9 +5,6 @@ import { useAuthStore } from '../../store/authStore'
 
 /* ─── Data ─────────────────────────────────────────────────────────────── */
 
-// Desktop app downloads — point these at your GitHub Releases (see desktop/README.md)
-const DESKTOP_RELEASES_URL = 'https://github.com/PythonLive7104/bouncetrap/releases/latest'
-
 const FEATURES = [
   {
     icon: (
@@ -326,81 +323,6 @@ function ApiSection({ ctaTo }) {
                 {'  '}<span className="text-slate-400">"disposable":</span> <span className="text-slate-500">false</span><span className="text-slate-600">,</span>{'\n'}
                 {'  '}<span className="text-slate-400">"credits_remaining":</span> <span className="text-brand-300">24997</span>{'\n'}
                 <span className="text-slate-600">{'}'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop app */}
-        <div className="mt-16 rounded-3xl border border-brand-800/30 bg-gradient-to-b from-brand-950/30 to-white/[0.02] p-8 sm:p-10">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-brand-400 mb-3">Desktop App</p>
-              <h3 className="text-2xl font-bold text-white mb-3">Verify from your desktop</h3>
-              <p className="text-slate-400 mb-5">
-                Prefer an app to the API? Download BounceTrap for desktop, paste your API key, and verify
-                single emails or bulk lists — with your live credit balance always in view. No browser, no code.
-              </p>
-              <ul className="space-y-2 mb-6 text-sm text-slate-300">
-                {['Single + bulk verification', 'Live credits balance', 'Download cleaned CSV results', 'Uses your existing API key'].map((f) => (
-                  <li key={f} className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <div className="flex flex-wrap gap-3">
-                <a href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer"
-                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download for Windows
-                </a>
-                <a href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer"
-                   className="inline-flex items-center gap-2 px-5 py-2.5 border border-white/10 hover:border-white/20 text-white text-sm font-semibold rounded-xl transition-colors">
-                  macOS
-                </a>
-                <a href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer"
-                   className="inline-flex items-center gap-2 px-5 py-2.5 border border-white/10 hover:border-white/20 text-white text-sm font-semibold rounded-xl transition-colors">
-                  Linux
-                </a>
-              </div>
-              <p className="text-xs text-slate-600 mt-3">Requires an API key — generate one in your dashboard (paid plans).</p>
-            </div>
-
-            {/* App mockup */}
-            <div className="rounded-2xl border border-white/10 bg-[#0e0e1c] overflow-hidden shadow-2xl">
-              <div className="h-9 bg-white/[0.03] border-b border-white/8 flex items-center gap-1.5 px-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-400/60" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400/60" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
-                <span className="ml-3 text-xs text-slate-500">BounceTrap</span>
-                <span className="ml-auto text-xs font-semibold text-brand-300 bg-brand-600/15 border border-brand-600/25 rounded-full px-2.5 py-0.5">24,997 credits</span>
-              </div>
-              <div className="p-5">
-                <div className="flex gap-2 mb-4">
-                  <span className="text-xs font-semibold text-white bg-white/[0.04] rounded-lg px-3 py-1.5">Single Verify</span>
-                  <span className="text-xs font-semibold text-slate-500 px-3 py-1.5">Bulk Jobs</span>
-                </div>
-                <div className="rounded-xl border border-white/10 overflow-hidden">
-                  <div className="px-4 py-3 flex items-center justify-between bg-emerald-500/[0.06]">
-                    <div>
-                      <p className="text-white font-semibold text-sm">john@company.com</p>
-                      <p className="text-emerald-400 text-xs mt-0.5">Valid and deliverable</p>
-                    </div>
-                    <span className="text-2xl font-extrabold text-white">98</span>
-                  </div>
-                  <div className="grid grid-cols-2 text-xs border-t border-white/6">
-                    {[['Domain', 'company.com'], ['ESP', 'Google'], ['MX found', 'Yes'], ['Disposable', 'No']].map(([k, v]) => (
-                      <div key={k} className="px-4 py-2 flex justify-between border-b border-white/[0.04]">
-                        <span className="text-slate-500">{k}</span><span className="text-slate-300">{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </div>
