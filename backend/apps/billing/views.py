@@ -181,6 +181,27 @@ PLAN_PRICES_MAP = {
 }
 
 
+def _apply_whole_number_pricing(payload):
+    """Make the amount the customer must send a clean whole number.
+
+    Two things otherwise produce a long 8-decimal amount (e.g. 70.07220074):
+      1. the USD->crypto exchange-rate conversion, and
+      2. the NOWPayments service fee added on top of the customer.
+
+    When NOWPAYMENTS_PAY_CURRENCY is set we lock the invoice to that single
+    stablecoin and price directly in it (no conversion, USDT ~= $1), and ask
+    NOWPayments to charge the fee to us rather than the customer. Result: the
+    customer sees exactly the price, e.g. 70 USDT. Set the env var blank to
+    restore full coin choice (and the 8-decimal amounts).
+    """
+    pay_currency = settings.NOWPAYMENTS_PAY_CURRENCY
+    if not pay_currency:
+        return
+    payload['pay_currency'] = pay_currency
+    payload['price_currency'] = pay_currency      # price in the coin -> no conversion
+    payload['is_fee_paid_by_user'] = False        # merchant absorbs the fee
+
+
 class CreateNowPaymentsInvoiceView(APIView):
     """POST /api/v1/billing/nowpayments/create-invoice/"""
 
@@ -215,6 +236,7 @@ class CreateNowPaymentsInvoiceView(APIView):
             'success_url':     f'{frontend}/dashboard/billing?payment=success',
             'cancel_url':      f'{frontend}/dashboard/billing?payment=cancelled',
         }
+        _apply_whole_number_pricing(payload)
         try:
             resp = req.post(
                 'https://api.nowpayments.io/v1/invoice',
@@ -282,6 +304,7 @@ class CreateCreditPackInvoiceView(APIView):
             'success_url':       f'{frontend}/dashboard/billing?payment=success',
             'cancel_url':        f'{frontend}/dashboard/billing?payment=cancelled',
         }
+        _apply_whole_number_pricing(payload)
         try:
             resp = req.post(
                 'https://api.nowpayments.io/v1/invoice',

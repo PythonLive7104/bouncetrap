@@ -207,6 +207,10 @@ ANYMAIL = {
 # ── NOWPayments ───────────────────────────────────────────────────────────
 NOWPAYMENTS_API_KEY  = config('NOWPAYMENTS_API_KEY', default='')
 NOWPAYMENTS_IPN_SECRET = config('NOWPAYMENTS_IPN_SECRET', default='')
+# Lock invoices to a single stablecoin so the amount shown is a clean whole
+# number (no USD→crypto conversion). USDT is ~$1, so price_amount in USD maps
+# 1:1. Set blank to let customers choose any coin (re-introduces 8 decimals).
+NOWPAYMENTS_PAY_CURRENCY = config('NOWPAYMENTS_PAY_CURRENCY', default='usdtbsc')
 
 # ── Inbox Placement seed accounts ────────────────────────────────────────
 INBOX_SEED_ACCOUNTS = [
