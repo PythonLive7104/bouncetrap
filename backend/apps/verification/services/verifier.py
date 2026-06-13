@@ -11,7 +11,7 @@ from typing import Optional
 
 from .dns_checker    import check_mx
 from .deep_client    import deep_verify, detect_esp
-from .kickbox_client import kickbox_verify
+from .kickbox_client import kickbox_verify, KickboxCreditsExhausted
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +176,18 @@ def verify_email(email: str, plan: str = 'free') -> VerificationResult:
     r.sub_status = 'pending_external_check'
 
     # ── Step 9: External verification — Kickbox for free plan, ELV for paid
-    deep_result = kickbox_verify(r.email) if plan == 'free' else deep_verify(r.email)
+    # When Kickbox credits are exhausted, fall back to EmailListVerify (ELV).
+    if plan == 'free':
+        try:
+            deep_result = kickbox_verify(r.email)
+        except KickboxCreditsExhausted:
+            logger.warning(
+                'Kickbox credits exhausted — falling back to EmailListVerify for %s',
+                r.email,
+            )
+            deep_result = deep_verify(r.email)
+    else:
+        deep_result = deep_verify(r.email)
     if deep_result:
         r.status          = deep_result['status']
         r.sub_status      = deep_result['sub_status']
