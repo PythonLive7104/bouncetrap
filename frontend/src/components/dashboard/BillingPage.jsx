@@ -293,6 +293,38 @@ function CreditPacksSection({ onBuy, buying }) {
   )
 }
 
+const NETWORKS = [
+  { id: 'trc20', label: 'USDT · TRC20', sub: 'Tron network' },
+  { id: 'bep20', label: 'USDT · BEP20', sub: 'BNB Smart Chain' },
+]
+
+function NetworkSelector({ value, onChange }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6">
+      <h3 className="text-white font-semibold text-base">Payment network</h3>
+      <p className="text-slate-500 text-sm mt-0.5">
+        Choose which USDT network to pay on. You'll be charged the exact amount shown, with no extra fees.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+        {NETWORKS.map((n) => (
+          <button
+            key={n.id}
+            onClick={() => onChange(n.id)}
+            className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border text-left transition-all ${
+              value === n.id
+                ? 'border-brand-500/50 bg-brand-500/10'
+                : 'border-white/8 bg-white/[0.03] hover:border-brand-500/40 hover:bg-white/[0.06]'
+            }`}
+          >
+            <span className="text-sm font-semibold text-white">{n.label}</span>
+            <span className="text-xs text-slate-400">{n.sub}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const STATUS_STYLES = {
   waiting:    'bg-amber-500/10 text-amber-300 border-amber-500/20',
   confirming: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
@@ -387,6 +419,7 @@ export default function BillingPage() {
   const [buyingPack, setBuyingPack]     = useState(null)
   const [packError, setPackError]       = useState('')
   const [loyalty, setLoyalty]           = useState(null)
+  const [network, setNetwork]           = useState('bep20')   // USDT network
 
   const currentPlan = user?.plan || 'free'
   const isFreePlan  = currentPlan === 'free'
@@ -410,7 +443,7 @@ export default function BillingPage() {
     setBuyingPack(packId)
     setPackError('')
     try {
-      const { data } = await api.post('/billing/nowpayments/buy-pack/', { pack_id: packId })
+      const { data } = await api.post('/billing/nowpayments/buy-pack/', { pack_id: packId, network })
       window.location.href = data.invoice_url
     } catch (err) {
       setPackError(err.response?.data?.detail || 'Could not create payment. Please try again.')
@@ -425,6 +458,7 @@ export default function BillingPage() {
       const { data } = await api.post('/billing/nowpayments/create-invoice/', {
         plan: planId,
         billing_period: isYearly ? 'yearly' : 'monthly',
+        network,
       })
       window.location.href = data.invoice_url
     } catch (err) {
@@ -489,6 +523,9 @@ export default function BillingPage() {
           </div>
         )}
       </div>
+
+      {/* USDT network selector — applies to plans and packs */}
+      <NetworkSelector value={network} onChange={setNetwork} />
 
       {/* Credit pack top-ups */}
       {packError && (

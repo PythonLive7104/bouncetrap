@@ -181,20 +181,41 @@ PLAN_PRICES_MAP = {
 }
 
 
-def _apply_whole_number_pricing(payload):
+# NOWPayments coin codes the customer may choose from, keyed by the short
+# `network` value the frontend sends. All are USDT (~$1) so pricing the invoice
+# directly in the coin keeps the amount a clean whole number (no conversion).
+USDT_NETWORKS = {
+    'trc20': 'usdttrc20',   # USDT on Tron (TRC20)
+    'bep20': 'usdtbsc',     # USDT on BNB Smart Chain (BEP20)
+}
+
+
+def _resolve_pay_currency(network):
+    """Map a requested `network` to a NOWPayments coin code.
+
+    Falls back to NOWPAYMENTS_PAY_CURRENCY when the network is missing or
+    unknown, preserving the previous single-coin behaviour.
+    """
+    if network:
+        coin = USDT_NETWORKS.get(network.strip().lower())
+        if coin:
+            return coin
+    return settings.NOWPAYMENTS_PAY_CURRENCY
+
+
+def _apply_whole_number_pricing(payload, network=None):
     """Make the amount the customer must send a clean whole number.
 
     Two things otherwise produce a long 8-decimal amount (e.g. 70.07220074):
       1. the USD->crypto exchange-rate conversion, and
       2. the NOWPayments service fee added on top of the customer.
 
-    When NOWPAYMENTS_PAY_CURRENCY is set we lock the invoice to that single
-    stablecoin and price directly in it (no conversion, USDT ~= $1), and ask
-    NOWPayments to charge the fee to us rather than the customer. Result: the
-    customer sees exactly the price, e.g. 70 USDT. Set the env var blank to
-    restore full coin choice (and the 8-decimal amounts).
+    We lock the invoice to a single stablecoin (chosen by `network`, e.g. USDT
+    TRC20 or BEP20) and price directly in it (no conversion, USDT ~= $1), and
+    ask NOWPayments to charge the fee to us rather than the customer. Result:
+    the customer sees exactly the price, e.g. 70 USDT, on their chosen network.
     """
-    pay_currency = settings.NOWPAYMENTS_PAY_CURRENCY
+    pay_currency = _resolve_pay_currency(network)
     if not pay_currency:
         return
     payload['pay_currency'] = pay_currency
@@ -211,11 +232,14 @@ class CreateNowPaymentsInvoiceView(APIView):
 
         plan           = request.data.get('plan', '').lower()
         billing_period = request.data.get('billing_period', 'monthly').lower()
+        network        = request.data.get('network', '').lower()
 
         if plan not in ('starter', 'growth', 'pro'):
             return Response({'detail': 'Invalid plan.'}, status=status.HTTP_400_BAD_REQUEST)
         if billing_period not in ('monthly', 'yearly'):
             return Response({'detail': 'Invalid billing_period.'}, status=status.HTTP_400_BAD_REQUEST)
+        if network and network not in USDT_NETWORKS:
+            return Response({'detail': 'Invalid network.'}, status=status.HTTP_400_BAD_REQUEST)
 
         api_key = settings.NOWPAYMENTS_API_KEY
         if not api_key:
@@ -236,7 +260,7 @@ class CreateNowPaymentsInvoiceView(APIView):
             'success_url':     f'{frontend}/dashboard/billing?payment=success',
             'cancel_url':      f'{frontend}/dashboard/billing?payment=cancelled',
         }
-        _apply_whole_number_pricing(payload)
+        _apply_whole_number_pricing(payload, network)
         try:
             resp = req.post(
                 'https://api.nowpayments.io/v1/invoice',
@@ -285,9 +309,12 @@ class CreateCreditPackInvoiceView(APIView):
         import uuid as uuid_mod
 
         pack_id = request.data.get('pack_id', '').strip()
+        network = request.data.get('network', '').lower()
         pack = next((p for p in CREDIT_PACKS if p['id'] == pack_id), None)
         if not pack:
             return Response({'detail': 'Invalid pack_id.'}, status=status.HTTP_400_BAD_REQUEST)
+        if network and network not in USDT_NETWORKS:
+            return Response({'detail': 'Invalid network.'}, status=status.HTTP_400_BAD_REQUEST)
 
         api_key = settings.NOWPAYMENTS_API_KEY
         if not api_key:
@@ -304,7 +331,7 @@ class CreateCreditPackInvoiceView(APIView):
             'success_url':       f'{frontend}/dashboard/billing?payment=success',
             'cancel_url':        f'{frontend}/dashboard/billing?payment=cancelled',
         }
-        _apply_whole_number_pricing(payload)
+        _apply_whole_number_pricing(payload, network)
         try:
             resp = req.post(
                 'https://api.nowpayments.io/v1/invoice',
