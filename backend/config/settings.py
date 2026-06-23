@@ -8,6 +8,13 @@ SECRET_KEY = config('SECRET_KEY', default='dev-insecure-key-change-in-production
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Behind nginx (SSL termination → proxies http to web:8000). Trust the proxy's
+# X-Forwarded-Proto/Host so request.build_absolute_uri() produces https:// URLs.
+# Without this the NOWPayments IPN callback URL is built as http://, which nginx
+# 301-redirects and NOWPayments won't re-POST through — so payments never credit.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 # ── Applications ──────────────────────────────────────────────────────────
 DJANGO_APPS = [
     'django.contrib.admin',
