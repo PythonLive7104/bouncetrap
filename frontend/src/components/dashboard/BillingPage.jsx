@@ -46,7 +46,7 @@ function LoyaltyCard({ loyalty }) {
       </div>
 
       <p className="text-xs text-slate-600 mt-3">
-        Every credit purchase — any plan or pack — earns one stamp. Collect {stamps_required} for {reward_credits.toLocaleString()} free credits, added automatically.
+        Every credit pack you buy earns one stamp. Collect {stamps_required} for {reward_credits.toLocaleString()} free credits, added automatically.
       </p>
     </div>
   )
@@ -72,176 +72,6 @@ function CreditStatusCard({ plan, credits }) {
   )
 }
 
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Free',
-    monthlyPrice: 0,
-    monthlyCredits: 100,
-    features: [
-      '100 one-time signup credits',
-      'Single email verification',
-      'Dashboard access',
-      'No API access',
-      'No bulk verification',
-    ],
-    cta: null,
-  },
-  {
-    id: 'starter',
-    name: 'Starter',
-    monthlyPrice: 20,
-    monthlyCredits: 25_000,
-    features: [
-      '25,000 credits',
-      'Single + bulk verification',
-      'Full API access',
-      'Up to 5,000 emails per job',
-      'Email support',
-    ],
-    cta: 'Get Starter',
-    highlight: false,
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    monthlyPrice: 70,
-    monthlyCredits: 100_000,
-    features: [
-      '100,000 credits',
-      'Everything in Starter',
-      'Up to 50,000 emails per job',
-      'Deliverability tools',
-      'Priority support',
-    ],
-    cta: 'Get Growth',
-    highlight: true,
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    monthlyPrice: 110,
-    monthlyCredits: 200_000,
-    features: [
-      '200,000 credits',
-      'Everything in Growth',
-      'Up to 500,000 emails per job',
-      'Dedicated account manager',
-      'Custom integrations',
-    ],
-    cta: 'Get Pro',
-    highlight: false,
-  },
-]
-
-const PLAN_LIMITS = { free: 100, starter: 25000, growth: 100000, pro: 200000, enterprise: 500000 }
-
-function CheckIcon() {
-  return (
-    <svg className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  )
-}
-
-function PlanCard({ plan, isCurrent, isYearly, onUpgrade, isUpgrading }) {
-  const price   = isYearly ? plan.monthlyPrice * 10 : plan.monthlyPrice
-  const credits = isYearly ? plan.monthlyCredits * 12 : plan.monthlyCredits
-  const savings = plan.monthlyPrice > 0 ? plan.monthlyPrice * 2 : 0
-
-  return (
-    <div className={`relative rounded-2xl border p-5 flex flex-col gap-4 transition-all ${
-      plan.highlight
-        ? 'border-brand-500/50 bg-brand-600/5 shadow-lg shadow-brand-900/20'
-        : isCurrent
-          ? 'border-emerald-500/30 bg-emerald-500/5'
-          : 'border-white/8 bg-white/[0.02]'
-    }`}>
-      {plan.highlight && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-          <span className="text-xs px-3 py-1 rounded-full bg-brand-600 text-white font-semibold shadow-lg whitespace-nowrap">
-            Most popular
-          </span>
-        </div>
-      )}
-      {isCurrent && (
-        <div className="absolute -top-3 right-4 z-10">
-          <span className="text-xs px-3 py-1 rounded-full bg-emerald-600 text-white font-semibold shadow-lg whitespace-nowrap">
-            Current plan
-          </span>
-        </div>
-      )}
-
-      {/* Plan header */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">{plan.name}</p>
-        {plan.monthlyPrice === 0 ? (
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-bold text-white">Free</span>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-white">${price}</span>
-              {isYearly && <span className="text-slate-500 text-sm">/year</span>}
-            </div>
-            {isYearly && savings > 0 && (
-              <p className="text-xs text-emerald-400 font-medium mt-0.5">Save ${savings}/yr vs. bundle</p>
-            )}
-            {!isYearly && (
-              <p className="text-xs text-slate-600 mt-0.5">or ${plan.monthlyPrice * 10}/yr (save ${savings})</p>
-            )}
-          </div>
-        )}
-        <p className="text-xs text-slate-500 mt-1.5">
-          {credits.toLocaleString()} credits{isYearly && plan.monthlyPrice > 0 ? '/year' : ''}
-        </p>
-      </div>
-
-      {/* Features */}
-      <ul className="space-y-2 flex-1">
-        {plan.monthlyPrice > 0 && (
-          <li className="flex items-start gap-2 text-sm text-slate-300">
-            <CheckIcon />
-            {credits.toLocaleString()} credits
-          </li>
-        )}
-        {plan.features.slice(plan.monthlyPrice > 0 ? 1 : 0).map((f) => (
-          <li key={f} className="flex items-start gap-2 text-sm text-slate-300">
-            <CheckIcon />
-            {f}
-          </li>
-        ))}
-      </ul>
-
-      {/* CTA */}
-      {plan.cta && !isCurrent && (
-        <button
-          onClick={() => onUpgrade(plan.id)}
-          disabled={isUpgrading}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-wait ${
-            plan.highlight
-              ? 'bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-900/30'
-              : 'bg-white/[0.07] hover:bg-white/[0.12] text-white border border-white/10'
-          }`}
-        >
-          {isUpgrading ? 'Redirecting…' : plan.cta}
-        </button>
-      )}
-      {isCurrent && (
-        <div className="py-2.5 text-center text-sm text-emerald-400 font-semibold border border-emerald-500/20 rounded-xl bg-emerald-500/5">
-          Active plan
-        </div>
-      )}
-      {!plan.cta && !isCurrent && (
-        <div className="py-2.5 text-center text-sm text-slate-600 font-medium">
-          No payment needed
-        </div>
-      )}
-    </div>
-  )
-}
-
 const PACKS = [
   { id: 'pack_25k',  credits: 25_000,  price: 20,  label: '25K' },
   { id: 'pack_50k',  credits: 50_000,  price: 40,  label: '50K' },
@@ -255,8 +85,8 @@ function CreditPacksSection({ onBuy, buying }) {
     <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6">
       <div className="flex items-start justify-between mb-1 gap-4 flex-wrap">
         <div>
-          <h3 className="text-white font-semibold text-base">Credit top-ups</h3>
-          <p className="text-slate-500 text-sm mt-0.5">Need more credits without changing your plan? Buy a one-time pack.</p>
+          <h3 className="text-white font-semibold text-base">Buy credits</h3>
+          <p className="text-slate-500 text-sm mt-0.5">Pay as you go — pick a credit pack. Your first purchase unlocks full access.</p>
         </div>
         <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-medium shrink-0">Credits never expire</span>
       </div>
@@ -446,13 +276,10 @@ function CryptoDepositModal({ request, onClose, onSubmitted }) {
     setCreating(true)
     setError('')
     try {
-      const endpoint = request.type === 'pack'
-        ? '/billing/crypto/buy-pack/'
-        : '/billing/crypto/create-deposit/'
-      const body = request.type === 'pack'
-        ? { pack_id: request.pack_id, network: selected }
-        : { plan: request.plan, billing_period: request.billing_period, network: selected }
-      const { data } = await api.post(endpoint, body)
+      const { data } = await api.post('/billing/crypto/buy-pack/', {
+        pack_id: request.pack_id,
+        network: selected,
+      })
       setDeposit(data)
       setRemaining(DEPOSIT_WINDOW_SECONDS)
     } catch (err) {
@@ -648,7 +475,6 @@ function CryptoDepositModal({ request, onClose, onSubmitted }) {
 
 export default function BillingPage() {
   const { user, credits, setCredits, setUser } = useAuthStore()
-  const [isYearly, setIsYearly]         = useState(false)
   const [ledger, setLedger]             = useState([])
   const [ledgerLoading, setLedgerLoading] = useState(true)
   const [loyalty, setLoyalty]           = useState(null)
@@ -699,20 +525,6 @@ export default function BillingPage() {
     })
   }
 
-  // Open the USDT deposit modal for a plan.
-  function handleUpgrade(planId) {
-    const plan = PLANS.find((p) => p.id === planId)
-    if (!plan) return
-    const amount = isYearly ? plan.monthlyPrice * 10 : plan.monthlyPrice
-    setDepositRequest({
-      type:           'plan',
-      plan:           planId,
-      billing_period: isYearly ? 'yearly' : 'monthly',
-      label:          `${plan.name} plan (${isYearly ? 'yearly' : 'monthly'})`,
-      amount,
-    })
-  }
-
   // Called once the user submits their tx hash — show the pending banner and
   // refresh the balance/history so the new deposit appears.
   function handleDepositSubmitted() {
@@ -725,8 +537,8 @@ export default function BillingPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-white">Billing & Plan</h2>
-        <p className="text-sm text-slate-400 mt-1">Manage your subscription and credit usage.</p>
+        <h2 className="text-xl font-bold text-white">Billing</h2>
+        <p className="text-sm text-slate-400 mt-1">Buy credits and view your payment history.</p>
       </div>
 
       {paymentNotice === 'submitted' && (
@@ -777,69 +589,13 @@ export default function BillingPage() {
 
         {currentPlan === 'free' && (
           <div className="mt-4 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-amber-300/80 text-xs">
-            Free credits are a one-time signup bonus and do not renew monthly. Upgrade to get recurring credits.
-          </div>
-        )}
-        {usedPct > 80 && currentPlan !== 'free' && (
-          <div className="mt-4 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 text-red-300/80 text-xs">
-            You've used over 80% of your monthly credits. Consider upgrading before you run out.
+            Free credits are a one-time signup bonus. Buy a credit pack below to unlock full access — bulk verification, API, teams and more.
           </div>
         )}
       </div>
 
       {/* Credit pack top-ups */}
       <CreditPacksSection onBuy={handleBuyPack} />
-
-      {/* Plan selector with monthly/yearly toggle */}
-      <div>
-        <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
-          <h3 className="text-white font-semibold text-base">Choose a plan</h3>
-
-          {/* Billing toggle */}
-          <div className="flex items-center gap-3">
-            <span className={`text-sm font-medium transition-colors ${!isYearly ? 'text-white' : 'text-slate-500'}`}>Bundle</span>
-            <button
-              onClick={() => setIsYearly((v) => !v)}
-              className={`relative w-12 h-6 rounded-full transition-colors ${isYearly ? 'bg-brand-600' : 'bg-white/15'}`}
-            >
-              <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${isYearly ? 'translate-x-6' : 'translate-x-0.5'}`}
-              />
-            </button>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-sm font-medium transition-colors ${isYearly ? 'text-white' : 'text-slate-500'}`}>Yearly</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-semibold">
-                Save 17%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {isYearly && (
-          <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-500/8 border border-emerald-500/20 text-emerald-300/90 text-sm flex items-center gap-2">
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Yearly billing: pay for 10 months, receive 12 months of credits. That's 2 months free.
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {PLANS.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              isCurrent={plan.id === currentPlan}
-              isYearly={isYearly}
-              onUpgrade={handleUpgrade}
-            />
-          ))}
-        </div>
-
-        <p className="text-xs text-slate-600 mt-4 text-center">
-          Paid in USDT on TRON (TRC20), BSC (BEP20), or Ethereum (ERC20). Credits are added once your deposit is verified on-chain.
-        </p>
-      </div>
 
       {/* Credit ledger */}
       <div className="rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden">

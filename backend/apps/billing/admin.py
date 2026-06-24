@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 from django.utils.html import format_html
-from .models import CreditLedger, CreditPack, CryptoDeposit, CoinbaseCharge
+from .models import CreditLedger, CreditPack, CryptoDeposit
 
 
 @admin.register(CreditLedger)
@@ -75,12 +75,3 @@ class CryptoDepositAdmin(admin.ModelAdmin):
             resolved_at=timezone.now(),
         )
         self.message_user(request, f'Rejected {updated} deposit(s).')
-
-
-@admin.register(CoinbaseCharge)
-class CoinbaseChargeAdmin(admin.ModelAdmin):
-    list_display    = ('user', 'plan', 'credits_to_add', 'status', 'charge_code', 'created_at', 'resolved_at')
-    list_filter     = ('status', 'plan')
-    search_fields   = ('user__email', 'charge_code', 'charge_id')
-    readonly_fields = ('id', 'charge_id', 'charge_code', 'created_at', 'resolved_at')
-    list_per_page   = 50

@@ -56,12 +56,11 @@ function ProgressBar({ processed, total }) {
   )
 }
 
+// Credits-only model: 'free' (trial) and 'paid'. Paid is limited by credits,
+// not a fixed row cap, so we show a generous ceiling.
 const PLAN_MAX_ROWS = {
-  free:       20,
-  starter:    5_000,
-  growth:     50_000,
-  pro:        500_000,
-  enterprise: 500_000,
+  free: 20,
+  paid: 1_000_000,
 }
 
 function UploadZone({ onUpload, uploading, plan }) {
@@ -163,7 +162,7 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadReport
   const isActive    = job.status === 'queued' || job.status === 'processing'
   const isPaused    = job.status === 'paused'
   const isFailed    = job.status === 'failed'
-  const canReport   = isDone && ['growth', 'pro', 'enterprise'].includes(userPlan)
+  const canReport   = isDone && userPlan === 'paid'
 
   const total   = job.total_count   || 0
   const valid   = job.valid_count   || 0

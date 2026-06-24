@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
-const GROWTH_PLANS = ['growth', 'pro', 'enterprise']
+// Credits-only model: team features are available to any paid account.
+const GROWTH_PLANS = ['paid']
 
 const ROLE_BADGE = {
   admin:  'bg-brand-500/15 text-brand-300 border-brand-500/20',

@@ -319,10 +319,8 @@ function AccountInfoSection() {
   const { user } = useAuthStore()
 
   const PLAN_COLORS = {
-    free:    'text-slate-400 bg-slate-500/10 border-slate-500/20',
-    starter: 'text-brand-300 bg-brand-500/10 border-brand-500/20',
-    growth:  'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
-    pro:     'text-amber-300 bg-amber-500/10 border-amber-500/20',
+    free: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
+    paid: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
   }
 
   return (

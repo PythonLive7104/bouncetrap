@@ -140,10 +140,10 @@ REST_FRAMEWORK = {
         'apps.accounts.throttling.PlanRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'free':    '60/min',
-        'starter': '600/min',
-        'growth':  '3000/min',
-        'pro':     '12000/min',
+        # Credits-only model: only two plans — 'free' (trial) and 'paid'.
+        # Any other/legacy plan value falls back to 'free' via PlanRateThrottle.
+        'free':       '60/min',
+        'paid':       '12000/min',
         'support_chat':    '20/min',
         'support_contact': '5/min',
         'public_tool':     '30/min',

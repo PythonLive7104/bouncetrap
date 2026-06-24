@@ -29,7 +29,7 @@ class UserAdmin(BaseUserAdmin):
 
     @admin.display(description='Plan')
     def plan_badge(self, obj):
-        colours = {'free': '#94a3b8', 'starter': '#22d3ee', 'growth': '#a78bfa', 'pro': '#f59e0b'}
+        colours = {'free': '#94a3b8', 'paid': '#22c55e'}
         colour = colours.get(obj.plan, '#94a3b8')
         return format_html('<span style="color:{};font-weight:600">{}</span>', colour, obj.plan.title())
 
@@ -37,12 +37,12 @@ class UserAdmin(BaseUserAdmin):
     def credits_display(self, obj):
         return f'{obj.credits:,}'
 
-    actions = ['grant_growth_plan', 'add_100k_credits', 'deactivate_users']
+    actions = ['grant_paid_plan', 'add_100k_credits', 'deactivate_users']
 
-    @admin.action(description='Grant Growth plan + 100,000 credits')
-    def grant_growth_plan(self, request, queryset):
-        queryset.update(plan='growth', credits=100_000)
-        self.message_user(request, f'Updated {queryset.count()} user(s) to Growth plan.')
+    @admin.action(description='Grant Paid plan + 100,000 credits')
+    def grant_paid_plan(self, request, queryset):
+        queryset.update(plan='paid', credits=100_000)
+        self.message_user(request, f'Updated {queryset.count()} user(s) to Paid plan.')
 
     @admin.action(description='Add 100,000 credits')
     def add_100k_credits(self, request, queryset):
@@ -64,3 +64,33 @@ class APIKeyAdmin(admin.ModelAdmin):
     search_fields   = ('user__email', 'name', 'prefix')
     readonly_fields = ('key_hash', 'prefix', 'created_at', 'last_used_at', 'requests_count')
     list_per_page   = 50
+
+
+# ── Declutter the admin index ──────────────────────────────────────────────
+# Third-party apps auto-register models we never touch from the admin (JWT
+# token blacklist, allauth email/social accounts, Sites, auth Groups, Celery
+# task results). This app's admin loads after them, so we can unregister here.
+# Each is guarded individually so a missing/disabled app never breaks startup.
+def _hide_unwanted_admin_models():
+    targets = [
+        ('django.contrib.auth.models',                         'Group'),
+        ('django.contrib.sites.models',                        'Site'),
+        ('rest_framework_simplejwt.token_blacklist.models',    'OutstandingToken'),
+        ('rest_framework_simplejwt.token_blacklist.models',    'BlacklistedToken'),
+        ('allauth.account.models',                             'EmailAddress'),
+        ('allauth.socialaccount.models',                       'SocialAccount'),
+        ('allauth.socialaccount.models',                       'SocialApp'),
+        ('allauth.socialaccount.models',                       'SocialToken'),
+        ('django_celery_results.models',                       'TaskResult'),
+        ('django_celery_results.models',                       'GroupResult'),
+    ]
+    from importlib import import_module
+    for module_path, model_name in targets:
+        try:
+            model = getattr(import_module(module_path), model_name)
+            admin.site.unregister(model)
+        except Exception:
+            pass  # app not installed, or model never registered — nothing to hide
+
+
+_hide_unwanted_admin_models()
