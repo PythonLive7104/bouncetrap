@@ -46,7 +46,7 @@ BounceTrap is an email verification and deliverability platform. It helps people
 - Collect **10 stamps and you automatically get 25,000 free credits**. The card then resets.
 
 ## Payments
-- Payments are made in crypto via NOWPayments. Slight underpayments (a tiny fraction short) are still accepted and credited in full.
+- Payments are made securely by card via Dodo Payments. Credits are added automatically once the payment is confirmed.
 
 ## Accuracy & safety
 - Verification never sends a real email to the address, so recipients are never contacted.

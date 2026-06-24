@@ -287,51 +287,16 @@ function CreditPacksSection({ onBuy, buying }) {
       </div>
 
       <p className="text-xs text-slate-600 mt-4">
-        Paid via NOWPayments (crypto). Credits are added immediately upon payment confirmation.
+        Paid securely by card via Dodo Payments. Credits are added immediately upon payment confirmation.
       </p>
-    </div>
-  )
-}
-
-const NETWORKS = [
-  { id: 'trc20', label: 'USDT · TRC20', sub: 'Tron network' },
-  { id: 'bep20', label: 'USDT · BEP20', sub: 'BNB Smart Chain' },
-]
-
-function NetworkSelector({ value, onChange }) {
-  return (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6">
-      <h3 className="text-white font-semibold text-base">Payment network</h3>
-      <p className="text-slate-500 text-sm mt-0.5">
-        Choose which USDT network to pay on. You'll be charged the exact amount shown, with no extra fees.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-        {NETWORKS.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => onChange(n.id)}
-            className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border text-left transition-all ${
-              value === n.id
-                ? 'border-brand-500/50 bg-brand-500/10'
-                : 'border-white/8 bg-white/[0.03] hover:border-brand-500/40 hover:bg-white/[0.06]'
-            }`}
-          >
-            <span className="text-sm font-semibold text-white">{n.label}</span>
-            <span className="text-xs text-slate-400">{n.sub}</span>
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
 
 const STATUS_STYLES = {
-  waiting:    'bg-amber-500/10 text-amber-300 border-amber-500/20',
-  confirming: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
-  confirmed:  'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  finished:   'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  failed:     'bg-red-500/10 text-red-300 border-red-500/20',
-  expired:    'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  pending:   'bg-amber-500/10 text-amber-300 border-amber-500/20',
+  succeeded: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+  failed:    'bg-red-500/10 text-red-300 border-red-500/20',
 }
 
 function InvoicesSection() {
@@ -349,7 +314,7 @@ function InvoicesSection() {
     <div className="rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden">
       <div className="px-6 py-4 border-b border-white/6 flex items-center justify-between">
         <h3 className="text-white font-semibold text-sm">Payment history</h3>
-        <span className="text-xs text-slate-500">All payments via NOWPayments</span>
+        <span className="text-xs text-slate-500">All payments via Dodo Payments</span>
       </div>
 
       {loading ? (
@@ -380,7 +345,7 @@ function InvoicesSection() {
                 <p className="text-slate-200 text-sm font-medium">{inv.description}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {new Date(inv.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                  {inv.resolved_at && inv.status === 'finished' && (
+                  {inv.resolved_at && inv.status === 'succeeded' && (
                     <span className="ml-2 text-slate-600">· confirmed {new Date(inv.resolved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                   )}
                 </p>
@@ -390,9 +355,9 @@ function InvoicesSection() {
                 <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${STATUS_STYLES[inv.status] || STATUS_STYLES.waiting}`}>
                   {inv.status}
                 </span>
-                {(inv.status === 'waiting' || inv.status === 'confirming') && (
+                {inv.status === 'pending' && (
                   <a
-                    href={inv.invoice_url}
+                    href={inv.checkout_url}
                     target="_blank"
                     rel="noreferrer"
                     className="text-xs text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors"
@@ -410,7 +375,7 @@ function InvoicesSection() {
 }
 
 export default function BillingPage() {
-  const { user, credits } = useAuthStore()
+  const { user, credits, setCredits, setUser } = useAuthStore()
   const [isYearly, setIsYearly]         = useState(false)
   const [ledger, setLedger]             = useState([])
   const [ledgerLoading, setLedgerLoading] = useState(true)
@@ -419,7 +384,7 @@ export default function BillingPage() {
   const [buyingPack, setBuyingPack]     = useState(null)
   const [packError, setPackError]       = useState('')
   const [loyalty, setLoyalty]           = useState(null)
-  const [network, setNetwork]           = useState('bep20')   // USDT network
+  const [paymentNotice, setPaymentNotice] = useState(null)   // 'success' | 'pending' | 'cancelled'
 
   const currentPlan = user?.plan || 'free'
   const isFreePlan  = currentPlan === 'free'
@@ -428,6 +393,20 @@ export default function BillingPage() {
   const planLimit   = 100
   const used        = Math.max(0, planLimit - credits)
   const usedPct     = isFreePlan ? Math.min((used / planLimit) * 100, 100) : 0
+
+  // Pull the latest balance + plan from the server and sync them into the store.
+  async function refreshBalance() {
+    try {
+      const { data } = await api.get('/billing/credits/')
+      if (typeof data.credits === 'number') setCredits(data.credits)
+      if (data.plan && user) setUser({ ...user, plan: data.plan, credits: data.credits })
+      api.get('/billing/credits/history/?limit=8').then(({ data }) => setLedger(data.results || data)).catch(() => {})
+      api.get('/billing/loyalty/').then(({ data }) => setLoyalty(data)).catch(() => {})
+      return data.credits
+    } catch {
+      return null
+    }
+  }
 
   useEffect(() => {
     api.get('/billing/credits/history/?limit=8')
@@ -439,12 +418,55 @@ export default function BillingPage() {
       .catch(() => {})
   }, [])
 
+  // Handle the redirect back from Dodo's hosted checkout. Dodo appends
+  // ?status=…&payment_id=… to the return URL. Credits are allocated by the
+  // webhook, which may land a beat after the browser returns — so we poll the
+  // balance for a few seconds until it updates.
+  useEffect(() => {
+    const params  = new URLSearchParams(window.location.search)
+    const status  = (params.get('status') || params.get('payment') || '').toLowerCase()
+    const fromDodo = status || params.get('payment_id')
+    if (!fromDodo) return
+
+    // Strip the query params so a refresh doesn't re-trigger this.
+    window.history.replaceState({}, '', window.location.pathname)
+
+    if (status === 'cancelled' || status === 'failed') {
+      setPaymentNotice('cancelled')
+      return
+    }
+
+    setPaymentNotice('pending')
+    const startCredits = credits
+    let attempts = 0
+    let cancelled = false
+
+    async function poll() {
+      attempts += 1
+      const latest = await refreshBalance()
+      if (cancelled) return
+      if (typeof latest === 'number' && latest > startCredits) {
+        setPaymentNotice('success')
+        return
+      }
+      if (attempts >= 6) {
+        // Webhook not in yet — payment is still being confirmed.
+        setPaymentNotice(latest > startCredits ? 'success' : 'pending')
+        return
+      }
+      setTimeout(poll, 2500)
+    }
+    poll()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function handleBuyPack(packId) {
     setBuyingPack(packId)
     setPackError('')
     try {
-      const { data } = await api.post('/billing/nowpayments/buy-pack/', { pack_id: packId, network })
-      window.location.href = data.invoice_url
+      const { data } = await api.post('/billing/dodo/buy-pack/', { pack_id: packId })
+      window.location.href = data.checkout_url
     } catch (err) {
       setPackError(err.response?.data?.detail || 'Could not create payment. Please try again.')
       setBuyingPack(null)
@@ -455,12 +477,11 @@ export default function BillingPage() {
     setUpgrading(planId)
     setUpgradeError('')
     try {
-      const { data } = await api.post('/billing/nowpayments/create-invoice/', {
+      const { data } = await api.post('/billing/dodo/create-checkout/', {
         plan: planId,
         billing_period: isYearly ? 'yearly' : 'monthly',
-        network,
       })
-      window.location.href = data.invoice_url
+      window.location.href = data.checkout_url
     } catch (err) {
       setUpgradeError(err.response?.data?.detail || 'Could not create payment. Please try again.')
       setUpgrading(null)
@@ -475,6 +496,29 @@ export default function BillingPage() {
         <h2 className="text-xl font-bold text-white">Billing & Plan</h2>
         <p className="text-sm text-slate-400 mt-1">Manage your subscription and credit usage.</p>
       </div>
+
+      {paymentNotice === 'success' && (
+        <div className="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm flex items-center gap-2">
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Payment confirmed — your credits have been added. Thank you!
+        </div>
+      )}
+      {paymentNotice === 'pending' && (
+        <div className="px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-center gap-2">
+          <svg className="w-4 h-4 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Payment received — we're confirming it now. Your credits will appear here within a minute.
+        </div>
+      )}
+      {paymentNotice === 'cancelled' && (
+        <div className="px-4 py-3 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-300 text-sm">
+          Payment cancelled — no charge was made. You can try again any time.
+        </div>
+      )}
 
       <CreditStatusCard plan={currentPlan} credits={credits} />
 
@@ -523,9 +567,6 @@ export default function BillingPage() {
           </div>
         )}
       </div>
-
-      {/* USDT network selector — applies to plans and packs */}
-      <NetworkSelector value={network} onChange={setNetwork} />
 
       {/* Credit pack top-ups */}
       {packError && (
@@ -587,7 +628,7 @@ export default function BillingPage() {
         </div>
 
         <p className="text-xs text-slate-600 mt-4 text-center">
-          Payments processed securely via NOWPayments. 100+ cryptocurrencies accepted including BTC, ETH, USDT, LTC and more.
+          Payments processed securely by card via Dodo Payments. All major credit and debit cards accepted.
         </p>
       </div>
 

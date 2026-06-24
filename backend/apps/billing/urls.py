@@ -10,8 +10,7 @@ urlpatterns = [
     path('credit-packs/',                 views.CreditPackListView.as_view(),       name='billing-credit-packs'),
     path('invoices/',                     views.InvoiceListView.as_view(),          name='billing-invoices'),
     path('packs/',                         views.CreditPackListAPIView.as_view(),        name='billing-packs'),
-    path('nowpayments/create-invoice/',   views.CreateNowPaymentsInvoiceView.as_view(), name='billing-nowpayments-create'),
-    path('nowpayments/buy-pack/',         views.CreateCreditPackInvoiceView.as_view(),  name='billing-nowpayments-buy-pack'),
-    path('nowpayments/webhook/',          views.NowPaymentsWebhookView.as_view(),       name='billing-nowpayments-webhook'),
-    path('nowpayments/ipn/',             views.NowPaymentsWebhookView.as_view(),       name='billing-nowpayments-ipn'),
+    path('dodo/create-checkout/',         views.CreateDodoCheckoutView.as_view(),       name='billing-dodo-create'),
+    path('dodo/buy-pack/',                views.CreateCreditPackCheckoutView.as_view(), name='billing-dodo-buy-pack'),
+    path('dodo/webhook/',                 views.DodoWebhookView.as_view(),              name='billing-dodo-webhook'),
 ]

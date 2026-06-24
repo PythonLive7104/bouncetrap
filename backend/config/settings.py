@@ -9,9 +9,8 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 # Behind nginx (SSL termination → proxies http to web:8000). Trust the proxy's
-# X-Forwarded-Proto/Host so request.build_absolute_uri() produces https:// URLs.
-# Without this the NOWPayments IPN callback URL is built as http://, which nginx
-# 301-redirects and NOWPayments won't re-POST through — so payments never credit.
+# X-Forwarded-Proto/Host so request.build_absolute_uri() produces https:// URLs
+# (e.g. the Dodo return_url), avoiding nginx 301-redirects on http:// links.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 
@@ -211,14 +210,16 @@ ANYMAIL = {
     'RESEND_API_KEY': config('RESEND_API_KEY', default=''),
 }
 
-# ── NOWPayments ───────────────────────────────────────────────────────────
-NOWPAYMENTS_API_KEY  = config('NOWPAYMENTS_API_KEY', default='')
-NOWPAYMENTS_IPN_SECRET = config('NOWPAYMENTS_IPN_SECRET', default='')
-# Fallback stablecoin used when the customer doesn't pick a network. Locking the
-# invoice to a single coin keeps the amount a clean whole number (no USD→crypto
-# conversion; USDT ~= $1). The customer normally chooses USDT TRC20 or BEP20 in
-# the app (see billing.views.USDT_NETWORKS); this is the default if none is sent.
-NOWPAYMENTS_PAY_CURRENCY = config('NOWPAYMENTS_PAY_CURRENCY', default='usdtbsc')
+# ── Dodo Payments ─────────────────────────────────────────────────────────
+# Card / fiat checkout via Dodo Payments (merchant of record). A single
+# "Pay What You Want" one-time product (DODO_PRODUCT_ID) covers every plan and
+# credit pack — the exact price is passed per checkout (see billing.views).
+DODO_API_KEY        = config('DODO_API_KEY', default='')
+DODO_WEBHOOK_SECRET = config('DODO_WEBHOOK_SECRET', default='')
+DODO_PRODUCT_ID     = config('DODO_PRODUCT_ID', default='')
+# 'test' uses the Dodo sandbox; 'live' uses production. Anything but 'live' = test.
+DODO_MODE           = config('DODO_MODE', default='test')
+DODO_API_BASE       = 'https://live.dodopayments.com' if DODO_MODE == 'live' else 'https://test.dodopayments.com'
 
 # ── Inbox Placement seed accounts ────────────────────────────────────────
 INBOX_SEED_ACCOUNTS = [

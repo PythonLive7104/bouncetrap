@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import CreditLedger, CreditPack, NowPaymentsInvoice, CoinbaseCharge
+from .models import CreditLedger, CreditPack, DodoPayment, CoinbaseCharge
 
 
 @admin.register(CreditLedger)
@@ -24,21 +24,20 @@ class CreditPackAdmin(admin.ModelAdmin):
     list_filter  = ('is_active',)
 
 
-@admin.register(NowPaymentsInvoice)
-class NowPaymentsInvoiceAdmin(admin.ModelAdmin):
+@admin.register(DodoPayment)
+class DodoPaymentAdmin(admin.ModelAdmin):
     list_display    = ('user', 'plan', 'invoice_type', 'credits_to_add', 'status_badge', 'billing_period', 'created_at', 'resolved_at')
     list_filter     = ('status', 'invoice_type', 'plan')
-    search_fields   = ('user__email', 'invoice_id', 'order_id')
-    readonly_fields = ('id', 'invoice_id', 'order_id', 'created_at', 'resolved_at')
+    search_fields   = ('user__email', 'session_id', 'payment_id', 'order_id')
+    readonly_fields = ('id', 'session_id', 'payment_id', 'order_id', 'created_at', 'resolved_at')
     list_per_page   = 50
 
     @admin.display(description='Status')
     def status_badge(self, obj):
         colours = {
-            'waiting':   '#f59e0b',
-            'confirmed': '#22c55e',
+            'pending':   '#f59e0b',
+            'succeeded': '#22c55e',
             'failed':    '#ef4444',
-            'expired':   '#94a3b8',
         }
         colour = colours.get(obj.status, '#94a3b8')
         return format_html('<span style="color:{};font-weight:600">{}</span>', colour, obj.status.title())

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import json
@@ -14,14 +15,14 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import CreditLedger, CreditPack, NowPaymentsInvoice
+from .models import CreditLedger, CreditPack, DodoPayment
 from .serializers import (
     CreditLedgerSerializer,
     CreditBalanceSerializer,
     PlanSerializer,
     CreditPackSerializer,
     SubscribeSerializer,
-    NowPaymentsInvoiceSerializer,
+    DodoPaymentSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -155,11 +156,11 @@ class CreditHistoryView(generics.ListAPIView):
 
 
 class InvoiceListView(generics.ListAPIView):
-    """GET /api/v1/billing/invoices/ — list the user's NOWPayments invoices."""
-    serializer_class = NowPaymentsInvoiceSerializer
+    """GET /api/v1/billing/invoices/ — list the user's Dodo payments."""
+    serializer_class = DodoPaymentSerializer
 
     def get_queryset(self):
-        return NowPaymentsInvoice.objects.filter(user=self.request.user)
+        return DodoPayment.objects.filter(user=self.request.user)
 
 
 PLAN_CREDITS_MAP = {
@@ -181,116 +182,94 @@ PLAN_PRICES_MAP = {
 }
 
 
-# NOWPayments coin codes the customer may choose from, keyed by the short
-# `network` value the frontend sends. All are USDT (~$1) so pricing the invoice
-# directly in the coin keeps the amount a clean whole number (no conversion).
-USDT_NETWORKS = {
-    'trc20': 'usdttrc20',   # USDT on Tron (TRC20)
-    'bep20': 'usdtbsc',     # USDT on BNB Smart Chain (BEP20)
-}
+DODO_CHECKOUT_PATH = '/checkouts'
 
 
-def _resolve_pay_currency(network):
-    """Map a requested `network` to a NOWPayments coin code.
+def _create_dodo_checkout(*, request, order_id, amount_usd, description, metadata):
+    """Create a Dodo Payments checkout session and return its JSON response.
 
-    Falls back to NOWPAYMENTS_PAY_CURRENCY when the network is missing or
-    unknown, preserving the previous single-coin behaviour.
+    Uses a single "Pay What You Want" product (DODO_PRODUCT_ID); the exact price
+    is passed per checkout via the cart `amount` (in cents). Raises on failure so
+    the caller can return a 502.
     """
-    if network:
-        coin = USDT_NETWORKS.get(network.strip().lower())
-        if coin:
-            return coin
-    return settings.NOWPAYMENTS_PAY_CURRENCY
+    import requests as req
+
+    frontend = settings.FRONTEND_URL.rstrip('/')
+    # Dodo appends its own ?status=&payment_id=… params to the return URL on
+    # redirect, so we leave it query-free here (the frontend keys off those).
+    payload = {
+        'product_cart': [{
+            'product_id': settings.DODO_PRODUCT_ID,
+            'quantity':   1,
+            'amount':     int(round(float(amount_usd) * 100)),   # lowest denomination (cents)
+        }],
+        'customer': {
+            'email': request.user.email,
+            'name':  request.user.full_name or request.user.email,
+        },
+        'return_url': f'{frontend}/dashboard/billing',
+        'metadata':   {k: str(v) for k, v in {**metadata, 'order_id': order_id}.items()},
+    }
+    resp = req.post(
+        f'{settings.DODO_API_BASE}{DODO_CHECKOUT_PATH}',
+        json=payload,
+        headers={
+            'Authorization': f'Bearer {settings.DODO_API_KEY}',
+            'Content-Type':  'application/json',
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
-def _apply_whole_number_pricing(payload, network=None):
-    """Make the amount the customer must send a clean whole number.
-
-    Two things otherwise produce a long 8-decimal amount (e.g. 70.07220074):
-      1. the USD->crypto exchange-rate conversion, and
-      2. the NOWPayments service fee added on top of the customer.
-
-    We lock the invoice to a single stablecoin (chosen by `network`, e.g. USDT
-    TRC20 or BEP20) and price directly in it (no conversion, USDT ~= $1), and
-    ask NOWPayments to charge the fee to us rather than the customer. Result:
-    the customer sees exactly the price, e.g. 70 USDT, on their chosen network.
-    """
-    pay_currency = _resolve_pay_currency(network)
-    if not pay_currency:
-        return
-    payload['pay_currency'] = pay_currency
-    payload['price_currency'] = pay_currency      # price in the coin -> no conversion
-    payload['is_fee_paid_by_user'] = False        # merchant absorbs the fee
-
-
-class CreateNowPaymentsInvoiceView(APIView):
-    """POST /api/v1/billing/nowpayments/create-invoice/"""
+class CreateDodoCheckoutView(APIView):
+    """POST /api/v1/billing/dodo/create-checkout/ — buy a plan via Dodo (card)."""
 
     def post(self, request):
-        import requests as req
         import uuid as uuid_mod
 
         plan           = request.data.get('plan', '').lower()
         billing_period = request.data.get('billing_period', 'monthly').lower()
-        network        = request.data.get('network', '').lower()
 
         if plan not in ('starter', 'growth', 'pro'):
             return Response({'detail': 'Invalid plan.'}, status=status.HTTP_400_BAD_REQUEST)
         if billing_period not in ('monthly', 'yearly'):
             return Response({'detail': 'Invalid billing_period.'}, status=status.HTTP_400_BAD_REQUEST)
-        if network and network not in USDT_NETWORKS:
-            return Response({'detail': 'Invalid network.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        api_key = settings.NOWPAYMENTS_API_KEY
-        if not api_key:
-            return Response({'detail': 'Crypto payments are not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        if not settings.DODO_API_KEY or not settings.DODO_PRODUCT_ID:
+            return Response({'detail': 'Payments are not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
 
-        key         = (plan, billing_period)
-        amount      = PLAN_PRICES_MAP[key]
-        credits     = PLAN_CREDITS_MAP[key]
-        order_id    = str(uuid_mod.uuid4())
-        frontend    = settings.FRONTEND_URL.rstrip('/')
+        key      = (plan, billing_period)
+        amount   = PLAN_PRICES_MAP[key]
+        credits  = PLAN_CREDITS_MAP[key]
+        order_id = str(uuid_mod.uuid4())
 
-        payload = {
-            'price_amount':    float(amount),
-            'price_currency':  'usd',
-            'order_id':        order_id,
-            'order_description': f'BounceTrap {plan.title()} ({billing_period}) — {credits:,} credits',
-            'ipn_callback_url': f'{request.build_absolute_uri("/")[:-1]}/api/v1/billing/nowpayments/webhook/',
-            'success_url':     f'{frontend}/dashboard/billing?payment=success',
-            'cancel_url':      f'{frontend}/dashboard/billing?payment=cancelled',
-        }
-        _apply_whole_number_pricing(payload, network)
         try:
-            resp = req.post(
-                'https://api.nowpayments.io/v1/invoice',
-                json=payload,
-                headers={
-                    'x-api-key':    api_key,
-                    'Content-Type': 'application/json',
-                },
-                timeout=15,
+            data = _create_dodo_checkout(
+                request     = request,
+                order_id    = order_id,
+                amount_usd  = amount,
+                description = f'BounceTrap {plan.title()} ({billing_period}) — {credits:,} credits',
+                metadata    = {'plan': plan, 'billing_period': billing_period, 'type': 'plan'},
             )
-            resp.raise_for_status()
         except Exception as exc:
-            logger.error('NOWPayments invoice creation failed: %s', exc)
+            logger.error('Dodo checkout creation failed: %s', exc)
             return Response({'detail': 'Could not create payment. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
 
-        data = resp.json()
-        NowPaymentsInvoice.objects.create(
+        DodoPayment.objects.create(
             user           = request.user,
-            invoice_id     = str(data['id']),
-            invoice_url    = data['invoice_url'],
+            session_id     = str(data['session_id']),
+            checkout_url   = data['checkout_url'],
             order_id       = order_id,
             plan           = plan,
             billing_period = billing_period,
             amount_usd     = amount,
             credits_to_add = credits,
         )
-
         return Response({
-            'invoice_id':  str(data['id']),
-            'invoice_url': data['invoice_url'],
+            'session_id':   str(data['session_id']),
+            'checkout_url': data['checkout_url'],
         }, status=status.HTTP_201_CREATED)
 
 
@@ -301,165 +280,158 @@ class CreditPackListAPIView(APIView):
         return Response(CREDIT_PACKS)
 
 
-class CreateCreditPackInvoiceView(APIView):
-    """POST /api/v1/billing/nowpayments/buy-pack/ — buy a credit pack via crypto."""
+class CreateCreditPackCheckoutView(APIView):
+    """POST /api/v1/billing/dodo/buy-pack/ — buy a credit pack via Dodo (card)."""
 
     def post(self, request):
-        import requests as req
         import uuid as uuid_mod
 
         pack_id = request.data.get('pack_id', '').strip()
-        network = request.data.get('network', '').lower()
         pack = next((p for p in CREDIT_PACKS if p['id'] == pack_id), None)
         if not pack:
             return Response({'detail': 'Invalid pack_id.'}, status=status.HTTP_400_BAD_REQUEST)
-        if network and network not in USDT_NETWORKS:
-            return Response({'detail': 'Invalid network.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        api_key = settings.NOWPAYMENTS_API_KEY
-        if not api_key:
-            return Response({'detail': 'Crypto payments are not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        if not settings.DODO_API_KEY or not settings.DODO_PRODUCT_ID:
+            return Response({'detail': 'Payments are not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
 
         order_id = str(uuid_mod.uuid4())
-        frontend = settings.FRONTEND_URL.rstrip('/')
-        payload  = {
-            'price_amount':      float(pack['price_usd']),
-            'price_currency':    'usd',
-            'order_id':          order_id,
-            'order_description': f'BounceTrap {pack["label"]} credit top-up',
-            'ipn_callback_url':  f'{request.build_absolute_uri("/")[:-1]}/api/v1/billing/nowpayments/webhook/',
-            'success_url':       f'{frontend}/dashboard/billing?payment=success',
-            'cancel_url':        f'{frontend}/dashboard/billing?payment=cancelled',
-        }
-        _apply_whole_number_pricing(payload, network)
         try:
-            resp = req.post(
-                'https://api.nowpayments.io/v1/invoice',
-                json=payload,
-                headers={'x-api-key': api_key, 'Content-Type': 'application/json'},
-                timeout=15,
+            data = _create_dodo_checkout(
+                request     = request,
+                order_id    = order_id,
+                amount_usd  = pack['price_usd'],
+                description = f'BounceTrap {pack["label"]} credit top-up',
+                metadata    = {'pack_id': pack_id, 'type': 'pack'},
             )
-            resp.raise_for_status()
         except Exception as exc:
-            logger.error('NOWPayments pack invoice creation failed: %s', exc)
+            logger.error('Dodo pack checkout creation failed: %s', exc)
             return Response({'detail': 'Could not create payment. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
 
-        data = resp.json()
-        NowPaymentsInvoice.objects.create(
+        DodoPayment.objects.create(
             user           = request.user,
-            invoice_id     = str(data['id']),
-            invoice_url    = data['invoice_url'],
+            session_id     = str(data['session_id']),
+            checkout_url   = data['checkout_url'],
             order_id       = order_id,
-            invoice_type   = NowPaymentsInvoice.TYPE_PACK,
+            invoice_type   = DodoPayment.TYPE_PACK,
             plan           = pack_id,
             billing_period = '',
             amount_usd     = pack['price_usd'],
             credits_to_add = pack['credits'],
         )
-        return Response({'invoice_id': str(data['id']), 'invoice_url': data['invoice_url']}, status=status.HTTP_201_CREATED)
+        return Response({
+            'session_id':   str(data['session_id']),
+            'checkout_url': data['checkout_url'],
+        }, status=status.HTTP_201_CREATED)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class NowPaymentsWebhookView(APIView):
-    """POST /api/v1/billing/nowpayments/webhook/ — NOWPayments IPN handler."""
+class DodoWebhookView(APIView):
+    """POST /api/v1/billing/dodo/webhook/ — Dodo Payments webhook handler.
+
+    Verifies the Standard Webhooks signature, then credits the user on
+    `payment.succeeded`.
+    """
     permission_classes = [AllowAny]
     authentication_classes = []
 
     def post(self, request):
-        ipn_secret = settings.NOWPAYMENTS_IPN_SECRET
+        raw_body = request.body
+
+        if not self._verify_signature(request, raw_body):
+            logger.warning('Dodo webhook: invalid signature')
+            return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            payload = json.loads(request.body)
+            payload = json.loads(raw_body)
         except json.JSONDecodeError:
             return Response({'detail': 'Bad JSON.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify HMAC-SHA512 signature when secret is configured
-        if ipn_secret:
-            sig         = request.META.get('HTTP_X_NOWPAYMENTS_SIG', '')
-            sorted_body = json.dumps(payload, sort_keys=True, separators=(',', ':'))
-            expected    = hmac.new(
-                ipn_secret.encode(),
-                sorted_body.encode(),
-                hashlib.sha512,
-            ).hexdigest()
-            if not hmac.compare_digest(sig, expected):
-                logger.warning('NOWPayments webhook: invalid signature')
-                return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            logger.warning('NOWPayments webhook: NOWPAYMENTS_IPN_SECRET not set — skipping signature check')
+        event_type = payload.get('type', '')
+        data       = payload.get('data', {}) or {}
+        metadata   = data.get('metadata', {}) or {}
+        order_id   = metadata.get('order_id', '')
+        payment_id = str(data.get('payment_id', '') or '')
 
-        order_id       = payload.get('order_id', '')
-        payment_status = payload.get('payment_status', '')
+        logger.info('Dodo webhook: type=%s order=%s payment=%s', event_type, order_id, payment_id)
 
-        logger.info('NOWPayments IPN: order=%s status=%s', order_id, payment_status)
-
-        if payment_status in ('confirmed', 'finished', 'partially_paid'):
-            self._confirm_invoice(order_id, payment_status)
-        elif payment_status in ('failed', 'refunded'):
-            NowPaymentsInvoice.objects.filter(order_id=order_id).update(
-                status=NowPaymentsInvoice.STATUS_FAILED,
-                resolved_at=timezone.now(),
-            )
-        elif payment_status == 'expired':
-            NowPaymentsInvoice.objects.filter(order_id=order_id).update(
-                status=NowPaymentsInvoice.STATUS_EXPIRED,
+        if event_type == 'payment.succeeded':
+            self._confirm_payment(order_id, payment_id)
+        elif event_type == 'payment.failed':
+            DodoPayment.objects.filter(order_id=order_id).update(
+                status=DodoPayment.STATUS_FAILED,
+                payment_id=payment_id or '',
                 resolved_at=timezone.now(),
             )
 
         return Response(status=status.HTTP_200_OK)
 
-    def _confirm_invoice(self, order_id, payment_status):
-        from datetime import timedelta
-        from django.db import transaction
+    def _verify_signature(self, request, raw_body):
+        """Verify the Standard Webhooks signature Dodo sends.
 
-        # Map NOWPayments payment_status → our invoice status.
-        # partially_paid (tiny underpayment, e.g. 0.00001 short) is treated as a
-        # completed payment: marked finished and credited in full.
-        INVOICE_STATUS_MAP = {
-            'finished':       NowPaymentsInvoice.STATUS_FINISHED,
-            'confirmed':      NowPaymentsInvoice.STATUS_CONFIRMED,
-            'partially_paid': NowPaymentsInvoice.STATUS_FINISHED,
-        }
-        new_invoice_status = INVOICE_STATUS_MAP.get(payment_status, NowPaymentsInvoice.STATUS_CONFIRMED)
+        signature = base64(HMAC-SHA256(secret, f"{id}.{timestamp}.{body}")).
+        The configured secret is base64-encoded and prefixed with `whsec_`.
+        The `webhook-signature` header is a space-separated list of `v1,<sig>`.
+        """
+        secret = settings.DODO_WEBHOOK_SECRET
+        if not secret:
+            logger.warning('Dodo webhook: DODO_WEBHOOK_SECRET not set — skipping signature check')
+            return True
+
+        webhook_id   = request.META.get('HTTP_WEBHOOK_ID', '')
+        timestamp    = request.META.get('HTTP_WEBHOOK_TIMESTAMP', '')
+        sig_header   = request.META.get('HTTP_WEBHOOK_SIGNATURE', '')
+        if not (webhook_id and timestamp and sig_header):
+            return False
+
+        if secret.startswith('whsec_'):
+            secret = secret[len('whsec_'):]
+        try:
+            secret_bytes = base64.b64decode(secret)
+        except Exception:
+            secret_bytes = secret.encode()
+
+        signed = f'{webhook_id}.{timestamp}.{raw_body.decode()}'.encode()
+        expected = base64.b64encode(
+            hmac.new(secret_bytes, signed, hashlib.sha256).digest()
+        ).decode()
+
+        # Header may carry multiple space-separated `v1,<sig>` versions.
+        for part in sig_header.split():
+            sig = part.split(',', 1)[1] if ',' in part else part
+            if hmac.compare_digest(sig, expected):
+                return True
+        return False
+
+    def _confirm_payment(self, order_id, payment_id):
+        from django.db import transaction
 
         with transaction.atomic():
             try:
-                invoice = NowPaymentsInvoice.objects.select_for_update().get(
+                payment = DodoPayment.objects.select_for_update().get(
                     order_id=order_id,
-                    status__in=[
-                        NowPaymentsInvoice.STATUS_WAITING,
-                        NowPaymentsInvoice.STATUS_CONFIRMING,
-                    ],
+                    status=DodoPayment.STATUS_PENDING,
                 )
-            except NowPaymentsInvoice.DoesNotExist:
-                # Could be a duplicate IPN for an already-processed order (e.g. confirmed → finished).
-                # Safely upgrade status without re-crediting.
-                if payment_status == 'finished':
-                    updated = NowPaymentsInvoice.objects.filter(
-                        order_id=order_id,
-                        status=NowPaymentsInvoice.STATUS_CONFIRMED,
-                    ).update(status=NowPaymentsInvoice.STATUS_FINISHED, resolved_at=timezone.now())
-                    if updated:
-                        logger.info('NOWPayments IPN: order=%s upgraded to finished', order_id)
-                        return
-                logger.info('NOWPayments IPN: order=%s already processed or unknown', order_id)
+            except DodoPayment.DoesNotExist:
+                # Duplicate webhook for an already-credited order — ignore safely.
+                logger.info('Dodo webhook: order=%s already processed or unknown', order_id)
                 return
 
-            invoice.status      = new_invoice_status
-            invoice.resolved_at = timezone.now()
-            invoice.save()
+            payment.status      = DodoPayment.STATUS_SUCCEEDED
+            payment.payment_id  = payment_id or payment.payment_id
+            payment.resolved_at = timezone.now()
+            payment.save()
 
-            user          = invoice.user
-            user.credits += invoice.credits_to_add
+            user          = payment.user
+            user.credits += payment.credits_to_add
 
             # Credits-only model: every purchase just tops up credits and unlocks
             # full feature access (plan='paid'). Nothing ever expires.
             if user.plan == 'free':
                 user.plan = User.PLAN_PAID
-            if invoice.invoice_type == NowPaymentsInvoice.TYPE_PACK:
-                notes = f'Credit pack {invoice.plan} via crypto'
+            if payment.invoice_type == DodoPayment.TYPE_PACK:
+                notes = f'Credit pack {payment.plan} via card'
             else:
-                notes = f'{invoice.credits_to_add:,} credits via crypto ({payment_status})'
+                notes = f'{payment.credits_to_add:,} credits via card'
 
             # ── Loyalty reward card — every purchase earns one stamp ──────
             user.loyalty_stamps += 1
@@ -474,9 +446,9 @@ class NowPaymentsWebhookView(APIView):
 
             CreditLedger.objects.create(
                 user          = user,
-                amount        = invoice.credits_to_add,
+                amount        = payment.credits_to_add,
                 operation     = CreditLedger.OP_PURCHASE,
-                reference     = f'nowpayments:{invoice.invoice_id}',
+                reference     = f'dodo:{payment.payment_id or payment.session_id}',
                 balance_after = user.credits - (LOYALTY_REWARD_CREDITS if reward_won else 0),
                 notes         = notes,
             )
@@ -492,6 +464,6 @@ class NowPaymentsWebhookView(APIView):
                 )
                 logger.info('Loyalty reward: %d credits granted to %s', LOYALTY_REWARD_CREDITS, user.email)
             logger.info(
-                'NOWPayments IPN: credited %d to user %s (order=%s status=%s)',
-                invoice.credits_to_add, user.email, order_id, payment_status,
+                'Dodo webhook: credited %d to user %s (order=%s)',
+                payment.credits_to_add, user.email, order_id,
             )

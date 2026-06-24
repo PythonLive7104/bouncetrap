@@ -77,22 +77,16 @@ class CoinbaseCharge(models.Model):
         return f'{self.user.email} → {self.plan} ({self.billing_period}) [{self.status}]'
 
 
-class NowPaymentsInvoice(models.Model):
-    """Tracks every NOWPayments invoice so we can match IPN callbacks to users."""
+class DodoPayment(models.Model):
+    """Tracks every Dodo Payments checkout so we can match webhooks to users."""
 
-    STATUS_WAITING   = 'waiting'
-    STATUS_CONFIRMING = 'confirming'
-    STATUS_CONFIRMED = 'confirmed'
-    STATUS_FINISHED  = 'finished'
+    STATUS_PENDING   = 'pending'
+    STATUS_SUCCEEDED = 'succeeded'
     STATUS_FAILED    = 'failed'
-    STATUS_EXPIRED   = 'expired'
     STATUS_CHOICES = [
-        (STATUS_WAITING,    'Waiting'),
-        (STATUS_CONFIRMING, 'Confirming'),
-        (STATUS_CONFIRMED,  'Confirmed'),
-        (STATUS_FINISHED,   'Finished'),
-        (STATUS_FAILED,     'Failed'),
-        (STATUS_EXPIRED,    'Expired'),
+        (STATUS_PENDING,   'Pending'),
+        (STATUS_SUCCEEDED, 'Succeeded'),
+        (STATUS_FAILED,    'Failed'),
     ]
 
     TYPE_PLAN = 'plan'
@@ -100,21 +94,22 @@ class NowPaymentsInvoice(models.Model):
     TYPE_CHOICES = [(TYPE_PLAN, 'Plan'), (TYPE_PACK, 'Credit Pack')]
 
     id             = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user           = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='nowpayments_invoices')
-    invoice_id     = models.CharField(max_length=100, unique=True)
-    invoice_url    = models.URLField(max_length=500)
-    order_id       = models.CharField(max_length=100, unique=True)  # our internal UUID
+    user           = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='dodo_payments')
+    session_id     = models.CharField(max_length=100, unique=True)         # Dodo checkout session id
+    payment_id     = models.CharField(max_length=100, blank=True, db_index=True)  # filled by webhook
+    checkout_url   = models.URLField(max_length=500)
+    order_id       = models.CharField(max_length=100, unique=True)         # our internal UUID (sent as metadata)
     invoice_type   = models.CharField(max_length=10, choices=TYPE_CHOICES, default=TYPE_PLAN)
     plan           = models.CharField(max_length=20)
     billing_period = models.CharField(max_length=10, blank=True)
     amount_usd     = models.DecimalField(max_digits=10, decimal_places=2)
     credits_to_add = models.PositiveIntegerField()
-    status         = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_WAITING)
+    status         = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     created_at     = models.DateTimeField(auto_now_add=True)
     resolved_at    = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = 'billing_nowpayments_invoice'
+        db_table = 'billing_dodo_payment'
         ordering = ['-created_at']
 
     def __str__(self):
