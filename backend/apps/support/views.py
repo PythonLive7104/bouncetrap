@@ -46,7 +46,8 @@ BounceTrap is an email verification and deliverability platform. It helps people
 - Collect **10 stamps and you automatically get 25,000 free credits**. The card then resets.
 
 ## Payments
-- Payments are made securely by card via Dodo Payments. Credits are added automatically once the payment is confirmed.
+- Payments are made in USDT (Tether). Pick a plan or credit pack, choose a network — TRON (TRC20), BSC (BEP20), or Ethereum (ERC20) — send the exact USDT amount to the address shown, then paste your transaction hash.
+- Credits are added once the deposit is verified on-chain (usually within a few minutes to a couple of hours).
 
 ## Accuracy & safety
 - Verification never sends a real email to the address, so recipients are never contacted.

@@ -1,28 +1,21 @@
-import base64
-import hashlib
-import hmac
-import json
 import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import CreditLedger, CreditPack, DodoPayment
+from .models import CreditLedger, CreditPack, CryptoDeposit
 from .serializers import (
     CreditLedgerSerializer,
     CreditBalanceSerializer,
     PlanSerializer,
     CreditPackSerializer,
     SubscribeSerializer,
-    DodoPaymentSerializer,
+    CryptoDepositSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,11 +149,11 @@ class CreditHistoryView(generics.ListAPIView):
 
 
 class InvoiceListView(generics.ListAPIView):
-    """GET /api/v1/billing/invoices/ — list the user's Dodo payments."""
-    serializer_class = DodoPaymentSerializer
+    """GET /api/v1/billing/invoices/ — list the user's USDT deposits."""
+    serializer_class = CryptoDepositSerializer
 
     def get_queryset(self):
-        return DodoPayment.objects.filter(user=self.request.user)
+        return CryptoDeposit.objects.filter(user=self.request.user)
 
 
 PLAN_CREDITS_MAP = {
@@ -182,95 +175,67 @@ PLAN_PRICES_MAP = {
 }
 
 
-DODO_CHECKOUT_PATH = '/checkouts'
+def _network_payload():
+    """Build the list of available USDT networks with their receiving address."""
+    wallets = settings.USDT_WALLETS
+    return [
+        {
+            'id':            net['id'],
+            'label':         net['label'],
+            'address':       wallets.get(net['id'], ''),
+            'confirmations': net['confirmations'],
+        }
+        for net in settings.USDT_NETWORKS
+        if wallets.get(net['id'])
+    ]
 
 
-def _create_dodo_checkout(*, request, order_id, amount_usd, description, metadata):
-    """Create a Dodo Payments checkout session and return its JSON response.
+class CryptoNetworksView(APIView):
+    """GET /api/v1/billing/crypto/networks/ — USDT networks + receiving addresses."""
 
-    Uses a single "Pay What You Want" product (DODO_PRODUCT_ID); the exact price
-    is passed per checkout via the cart `amount` (in cents). Raises on failure so
-    the caller can return a 502.
-    """
-    import requests as req
-
-    frontend = settings.FRONTEND_URL.rstrip('/')
-    # Dodo appends its own ?status=&payment_id=… params to the return URL on
-    # redirect, so we leave it query-free here (the frontend keys off those).
-    payload = {
-        'product_cart': [{
-            'product_id': settings.DODO_PRODUCT_ID,
-            'quantity':   1,
-            'amount':     int(round(float(amount_usd) * 100)),   # lowest denomination (cents)
-        }],
-        'customer': {
-            'email': request.user.email,
-            'name':  request.user.full_name or request.user.email,
-        },
-        'return_url': f'{frontend}/dashboard/billing',
-        'metadata':   {k: str(v) for k, v in {**metadata, 'order_id': order_id}.items()},
-    }
-    resp = req.post(
-        f'{settings.DODO_API_BASE}{DODO_CHECKOUT_PATH}',
-        json=payload,
-        headers={
-            'Authorization': f'Bearer {settings.DODO_API_KEY}',
-            'Content-Type':  'application/json',
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    def get(self, request):
+        return Response({'asset': 'USDT', 'networks': _network_payload()})
 
 
-class CreateDodoCheckoutView(APIView):
-    """POST /api/v1/billing/dodo/create-checkout/ — buy a plan via Dodo (card)."""
+def _resolve_network(network):
+    """Return (network_id, wallet_address) for a requested network, or (None, None)."""
+    network = (network or '').lower()
+    address = settings.USDT_WALLETS.get(network)
+    valid   = {n['id'] for n in settings.USDT_NETWORKS}
+    if network not in valid or not address:
+        return None, None
+    return network, address
+
+
+class CreateDepositView(APIView):
+    """POST /api/v1/billing/crypto/create-deposit/ — start a USDT deposit for a plan."""
 
     def post(self, request):
-        import uuid as uuid_mod
-
         plan           = request.data.get('plan', '').lower()
         billing_period = request.data.get('billing_period', 'monthly').lower()
+        network, address = _resolve_network(request.data.get('network'))
 
         if plan not in ('starter', 'growth', 'pro'):
             return Response({'detail': 'Invalid plan.'}, status=status.HTTP_400_BAD_REQUEST)
         if billing_period not in ('monthly', 'yearly'):
             return Response({'detail': 'Invalid billing_period.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not network:
+            return Response({'detail': 'Invalid or unsupported network.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not settings.DODO_API_KEY or not settings.DODO_PRODUCT_ID:
-            return Response({'detail': 'Payments are not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        key     = (plan, billing_period)
+        amount  = PLAN_PRICES_MAP[key]
+        credits = PLAN_CREDITS_MAP[key]
 
-        key      = (plan, billing_period)
-        amount   = PLAN_PRICES_MAP[key]
-        credits  = PLAN_CREDITS_MAP[key]
-        order_id = str(uuid_mod.uuid4())
-
-        try:
-            data = _create_dodo_checkout(
-                request     = request,
-                order_id    = order_id,
-                amount_usd  = amount,
-                description = f'BounceTrap {plan.title()} ({billing_period}) — {credits:,} credits',
-                metadata    = {'plan': plan, 'billing_period': billing_period, 'type': 'plan'},
-            )
-        except Exception as exc:
-            logger.error('Dodo checkout creation failed: %s', exc)
-            return Response({'detail': 'Could not create payment. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
-
-        DodoPayment.objects.create(
+        deposit = CryptoDeposit.objects.create(
             user           = request.user,
-            session_id     = str(data['session_id']),
-            checkout_url   = data['checkout_url'],
-            order_id       = order_id,
+            network        = network,
+            wallet_address = address,
             plan           = plan,
             billing_period = billing_period,
             amount_usd     = amount,
             credits_to_add = credits,
         )
-        return Response({
-            'session_id':   str(data['session_id']),
-            'checkout_url': data['checkout_url'],
-        }, status=status.HTTP_201_CREATED)
+        return Response(CryptoDepositSerializer(deposit).data, status=status.HTTP_201_CREATED)
 
 
 class CreditPackListAPIView(APIView):
@@ -280,190 +245,52 @@ class CreditPackListAPIView(APIView):
         return Response(CREDIT_PACKS)
 
 
-class CreateCreditPackCheckoutView(APIView):
-    """POST /api/v1/billing/dodo/buy-pack/ — buy a credit pack via Dodo (card)."""
+class CreatePackDepositView(APIView):
+    """POST /api/v1/billing/crypto/buy-pack/ — start a USDT deposit for a credit pack."""
 
     def post(self, request):
-        import uuid as uuid_mod
-
         pack_id = request.data.get('pack_id', '').strip()
         pack = next((p for p in CREDIT_PACKS if p['id'] == pack_id), None)
+        network, address = _resolve_network(request.data.get('network'))
+
         if not pack:
             return Response({'detail': 'Invalid pack_id.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not network:
+            return Response({'detail': 'Invalid or unsupported network.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not settings.DODO_API_KEY or not settings.DODO_PRODUCT_ID:
-            return Response({'detail': 'Payments are not configured.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
-
-        order_id = str(uuid_mod.uuid4())
-        try:
-            data = _create_dodo_checkout(
-                request     = request,
-                order_id    = order_id,
-                amount_usd  = pack['price_usd'],
-                description = f'BounceTrap {pack["label"]} credit top-up',
-                metadata    = {'pack_id': pack_id, 'type': 'pack'},
-            )
-        except Exception as exc:
-            logger.error('Dodo pack checkout creation failed: %s', exc)
-            return Response({'detail': 'Could not create payment. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
-
-        DodoPayment.objects.create(
+        deposit = CryptoDeposit.objects.create(
             user           = request.user,
-            session_id     = str(data['session_id']),
-            checkout_url   = data['checkout_url'],
-            order_id       = order_id,
-            invoice_type   = DodoPayment.TYPE_PACK,
+            network        = network,
+            wallet_address = address,
+            invoice_type   = CryptoDeposit.TYPE_PACK,
             plan           = pack_id,
             billing_period = '',
             amount_usd     = pack['price_usd'],
             credits_to_add = pack['credits'],
         )
-        return Response({
-            'session_id':   str(data['session_id']),
-            'checkout_url': data['checkout_url'],
-        }, status=status.HTTP_201_CREATED)
+        return Response(CryptoDepositSerializer(deposit).data, status=status.HTTP_201_CREATED)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class DodoWebhookView(APIView):
-    """POST /api/v1/billing/dodo/webhook/ — Dodo Payments webhook handler.
-
-    Verifies the Standard Webhooks signature, then credits the user on
-    `payment.succeeded`.
-    """
-    permission_classes = [AllowAny]
-    authentication_classes = []
+class SubmitDepositTxView(APIView):
+    """POST /api/v1/billing/crypto/submit-tx/ — attach a tx hash to a pending deposit."""
 
     def post(self, request):
-        raw_body = request.body
+        deposit_id = request.data.get('deposit_id', '')
+        tx_hash    = (request.data.get('tx_hash', '') or '').strip()
 
-        if not self._verify_signature(request, raw_body):
-            logger.warning('Dodo webhook: invalid signature')
-            return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not tx_hash:
+            return Response({'detail': 'Transaction hash is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            payload = json.loads(raw_body)
-        except json.JSONDecodeError:
-            return Response({'detail': 'Bad JSON.'}, status=status.HTTP_400_BAD_REQUEST)
+            deposit = CryptoDeposit.objects.get(id=deposit_id, user=request.user)
+        except (CryptoDeposit.DoesNotExist, ValueError, TypeError):
+            return Response({'detail': 'Deposit not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        event_type = payload.get('type', '')
-        data       = payload.get('data', {}) or {}
-        metadata   = data.get('metadata', {}) or {}
-        order_id   = metadata.get('order_id', '')
-        payment_id = str(data.get('payment_id', '') or '')
+        if deposit.status not in (CryptoDeposit.STATUS_PENDING, CryptoDeposit.STATUS_SUBMITTED):
+            return Response({'detail': 'This deposit can no longer be updated.'}, status=status.HTTP_409_CONFLICT)
 
-        logger.info('Dodo webhook: type=%s order=%s payment=%s', event_type, order_id, payment_id)
-
-        if event_type == 'payment.succeeded':
-            self._confirm_payment(order_id, payment_id)
-        elif event_type == 'payment.failed':
-            DodoPayment.objects.filter(order_id=order_id).update(
-                status=DodoPayment.STATUS_FAILED,
-                payment_id=payment_id or '',
-                resolved_at=timezone.now(),
-            )
-
-        return Response(status=status.HTTP_200_OK)
-
-    def _verify_signature(self, request, raw_body):
-        """Verify the Standard Webhooks signature Dodo sends.
-
-        signature = base64(HMAC-SHA256(secret, f"{id}.{timestamp}.{body}")).
-        The configured secret is base64-encoded and prefixed with `whsec_`.
-        The `webhook-signature` header is a space-separated list of `v1,<sig>`.
-        """
-        secret = settings.DODO_WEBHOOK_SECRET
-        if not secret:
-            logger.warning('Dodo webhook: DODO_WEBHOOK_SECRET not set — skipping signature check')
-            return True
-
-        webhook_id   = request.META.get('HTTP_WEBHOOK_ID', '')
-        timestamp    = request.META.get('HTTP_WEBHOOK_TIMESTAMP', '')
-        sig_header   = request.META.get('HTTP_WEBHOOK_SIGNATURE', '')
-        if not (webhook_id and timestamp and sig_header):
-            return False
-
-        if secret.startswith('whsec_'):
-            secret = secret[len('whsec_'):]
-        try:
-            secret_bytes = base64.b64decode(secret)
-        except Exception:
-            secret_bytes = secret.encode()
-
-        signed = f'{webhook_id}.{timestamp}.{raw_body.decode()}'.encode()
-        expected = base64.b64encode(
-            hmac.new(secret_bytes, signed, hashlib.sha256).digest()
-        ).decode()
-
-        # Header may carry multiple space-separated `v1,<sig>` versions.
-        for part in sig_header.split():
-            sig = part.split(',', 1)[1] if ',' in part else part
-            if hmac.compare_digest(sig, expected):
-                return True
-        return False
-
-    def _confirm_payment(self, order_id, payment_id):
-        from django.db import transaction
-
-        with transaction.atomic():
-            try:
-                payment = DodoPayment.objects.select_for_update().get(
-                    order_id=order_id,
-                    status=DodoPayment.STATUS_PENDING,
-                )
-            except DodoPayment.DoesNotExist:
-                # Duplicate webhook for an already-credited order — ignore safely.
-                logger.info('Dodo webhook: order=%s already processed or unknown', order_id)
-                return
-
-            payment.status      = DodoPayment.STATUS_SUCCEEDED
-            payment.payment_id  = payment_id or payment.payment_id
-            payment.resolved_at = timezone.now()
-            payment.save()
-
-            user          = payment.user
-            user.credits += payment.credits_to_add
-
-            # Credits-only model: every purchase just tops up credits and unlocks
-            # full feature access (plan='paid'). Nothing ever expires.
-            if user.plan == 'free':
-                user.plan = User.PLAN_PAID
-            if payment.invoice_type == DodoPayment.TYPE_PACK:
-                notes = f'Credit pack {payment.plan} via card'
-            else:
-                notes = f'{payment.credits_to_add:,} credits via card'
-
-            # ── Loyalty reward card — every purchase earns one stamp ──────
-            user.loyalty_stamps += 1
-            reward_won = False
-            if user.loyalty_stamps >= LOYALTY_STAMPS_REQUIRED:
-                user.loyalty_stamps    -= LOYALTY_STAMPS_REQUIRED
-                user.loyalty_rewards_earned += 1
-                user.credits           += LOYALTY_REWARD_CREDITS
-                reward_won = True
-
-            user.save(update_fields=['plan', 'credits', 'loyalty_stamps', 'loyalty_rewards_earned'])
-
-            CreditLedger.objects.create(
-                user          = user,
-                amount        = payment.credits_to_add,
-                operation     = CreditLedger.OP_PURCHASE,
-                reference     = f'dodo:{payment.payment_id or payment.session_id}',
-                balance_after = user.credits - (LOYALTY_REWARD_CREDITS if reward_won else 0),
-                notes         = notes,
-            )
-
-            if reward_won:
-                CreditLedger.objects.create(
-                    user          = user,
-                    amount        = LOYALTY_REWARD_CREDITS,
-                    operation     = CreditLedger.OP_BONUS,
-                    reference     = f'loyalty:reward:{user.loyalty_rewards_earned}',
-                    balance_after = user.credits,
-                    notes         = f'Loyalty reward — {LOYALTY_STAMPS_REQUIRED} purchases completed 🎉',
-                )
-                logger.info('Loyalty reward: %d credits granted to %s', LOYALTY_REWARD_CREDITS, user.email)
-            logger.info(
-                'Dodo webhook: credited %d to user %s (order=%s)',
-                payment.credits_to_add, user.email, order_id,
-            )
+        deposit.tx_hash = tx_hash
+        deposit.status  = CryptoDeposit.STATUS_SUBMITTED
+        deposit.save(update_fields=['tx_hash', 'status'])
+        logger.info('USDT deposit %s tx submitted by %s', deposit.id, request.user.email)
+        return Response(CryptoDepositSerializer(deposit).data, status=status.HTTP_200_OK)

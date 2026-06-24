@@ -287,16 +287,24 @@ function CreditPacksSection({ onBuy, buying }) {
       </div>
 
       <p className="text-xs text-slate-600 mt-4">
-        Paid securely by card via Dodo Payments. Credits are added immediately upon payment confirmation.
+        Paid in USDT (TRC20 / BEP20 / ERC20). Credits are added once your deposit is verified on-chain.
       </p>
     </div>
   )
 }
 
 const STATUS_STYLES = {
-  pending:   'bg-amber-500/10 text-amber-300 border-amber-500/20',
-  succeeded: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  failed:    'bg-red-500/10 text-red-300 border-red-500/20',
+  pending:   'bg-slate-500/10 text-slate-300 border-slate-500/20',
+  submitted: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+  confirmed: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+  rejected:  'bg-red-500/10 text-red-300 border-red-500/20',
+}
+
+const STATUS_LABELS = {
+  pending:   'Awaiting payment',
+  submitted: 'Verifying',
+  confirmed: 'Confirmed',
+  rejected:  'Rejected',
 }
 
 function InvoicesSection() {
@@ -314,7 +322,7 @@ function InvoicesSection() {
     <div className="rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden">
       <div className="px-6 py-4 border-b border-white/6 flex items-center justify-between">
         <h3 className="text-white font-semibold text-sm">Payment history</h3>
-        <span className="text-xs text-slate-500">All payments via Dodo Payments</span>
+        <span className="text-xs text-slate-500">USDT deposits</span>
       </div>
 
       {loading ? (
@@ -345,26 +353,16 @@ function InvoicesSection() {
                 <p className="text-slate-200 text-sm font-medium">{inv.description}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {new Date(inv.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                  {inv.resolved_at && inv.status === 'succeeded' && (
+                  {inv.resolved_at && inv.status === 'confirmed' && (
                     <span className="ml-2 text-slate-600">· confirmed {new Date(inv.resolved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                   )}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-sm font-semibold text-white">${parseFloat(inv.amount_usd).toFixed(2)}</span>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${STATUS_STYLES[inv.status] || STATUS_STYLES.waiting}`}>
-                  {inv.status}
+                <span className="text-sm font-semibold text-white">{parseFloat(inv.amount_usd).toFixed(2)} USDT</span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${STATUS_STYLES[inv.status] || STATUS_STYLES.pending}`}>
+                  {STATUS_LABELS[inv.status] || inv.status}
                 </span>
-                {inv.status === 'pending' && (
-                  <a
-                    href={inv.checkout_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors"
-                  >
-                    Pay now
-                  </a>
-                )}
               </div>
             </div>
           ))}
@@ -374,17 +372,288 @@ function InvoicesSection() {
   )
 }
 
+const DEPOSIT_WINDOW_SECONDS = 30 * 60   // 30 minutes to complete a deposit
+
+const NETWORK_NOTE = {
+  trc20: 'Lowest fees — recommended.',
+  bep20: 'Low fees on BNB Smart Chain.',
+  erc20: 'Higher Ethereum gas fees.',
+}
+
+function CopyButton({ value, className = '' }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1800)
+        } catch { /* clipboard unavailable */ }
+      }}
+      className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
+        copied
+          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+          : 'border-white/12 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+      } ${className}`}
+    >
+      {copied ? 'Copied ✓' : 'Copy'}
+    </button>
+  )
+}
+
+function fmtCountdown(secs) {
+  const m = Math.floor(secs / 60).toString().padStart(2, '0')
+  const s = Math.floor(secs % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+}
+
+function CryptoDepositModal({ request, onClose, onSubmitted }) {
+  const [networks, setNetworks]   = useState([])
+  const [selected, setSelected]   = useState(null)
+  const [deposit, setDeposit]     = useState(null)
+  const [creating, setCreating]   = useState(false)
+  const [txHash, setTxHash]       = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError]         = useState('')
+  const [remaining, setRemaining] = useState(DEPOSIT_WINDOW_SECONDS)
+
+  // Load the available USDT networks + receiving addresses.
+  useEffect(() => {
+    api.get('/billing/crypto/networks/')
+      .then(({ data }) => {
+        const nets = data.networks || []
+        setNetworks(nets)
+        if (nets.length) setSelected(nets[0].id)
+      })
+      .catch(() => setError('Could not load deposit networks. Please try again.'))
+  }, [])
+
+  // 30-minute countdown — starts once an address has been generated.
+  useEffect(() => {
+    if (!deposit || submitted) return
+    if (remaining <= 0) return
+    const t = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000)
+    return () => clearInterval(t)
+  }, [deposit, submitted, remaining])
+
+  const expired = deposit && remaining <= 0 && !submitted
+
+  async function createDeposit() {
+    if (!selected) return
+    setCreating(true)
+    setError('')
+    try {
+      const endpoint = request.type === 'pack'
+        ? '/billing/crypto/buy-pack/'
+        : '/billing/crypto/create-deposit/'
+      const body = request.type === 'pack'
+        ? { pack_id: request.pack_id, network: selected }
+        : { plan: request.plan, billing_period: request.billing_period, network: selected }
+      const { data } = await api.post(endpoint, body)
+      setDeposit(data)
+      setRemaining(DEPOSIT_WINDOW_SECONDS)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not start the deposit. Please try again.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function submitTx() {
+    if (!txHash.trim()) {
+      setError('Paste your transaction hash to confirm your payment.')
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      await api.post('/billing/crypto/submit-tx/', { deposit_id: deposit.id, tx_hash: txHash.trim() })
+      setSubmitted(true)
+      onSubmitted?.()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not submit. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const amount     = deposit ? parseFloat(deposit.amount_usd).toFixed(2) : request.amount?.toFixed(2)
+  const qrSrc      = deposit
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=8&data=${encodeURIComponent(deposit.wallet_address)}`
+    : null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c0f14] shadow-2xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
+          <div>
+            <h3 className="text-white font-semibold text-base">Pay with USDT</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{request.label} · {amount} USDT</p>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {error && (
+            <div className="px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* ── Success: tx submitted, awaiting confirmation ── */}
+          {submitted ? (
+            <div className="text-center py-4 space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+                <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-white font-semibold">Payment submitted</p>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                We've received your transaction. Please wait while we confirm your payment on-chain — your credits
+                will be added automatically once it's verified, usually within a few minutes to a couple of hours.
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-2 w-full py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          ) : !deposit ? (
+            /* ── Step 1: choose network ── */
+            <>
+              <p className="text-sm text-slate-400">Choose the network you'll send USDT on:</p>
+              <div className="space-y-2">
+                {networks.map((net) => (
+                  <button
+                    key={net.id}
+                    onClick={() => setSelected(net.id)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
+                      selected === net.id
+                        ? 'border-brand-500/50 bg-brand-600/10'
+                        : 'border-white/8 bg-white/[0.02] hover:border-white/15'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-white">{net.label}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{NETWORK_NOTE[net.id] || ''}</p>
+                    </div>
+                    <span className={`w-4 h-4 rounded-full border-2 shrink-0 ${
+                      selected === net.id ? 'border-brand-500 bg-brand-500' : 'border-white/25'
+                    }`} />
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={createDeposit}
+                disabled={!selected || creating}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white transition-colors disabled:opacity-60 disabled:cursor-wait"
+              >
+                {creating ? 'Generating address…' : 'Continue'}
+              </button>
+            </>
+          ) : (
+            /* ── Step 2: pay + submit tx hash ── */
+            <>
+              {/* Countdown */}
+              <div className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium ${
+                expired
+                  ? 'bg-red-500/10 border-red-500/20 text-red-300'
+                  : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+              }`}>
+                {expired ? (
+                  <span>This deposit window expired. You can still pay — just submit your tx hash, or close and start again.</span>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Send within <span className="font-mono font-bold tabular-nums">{fmtCountdown(remaining)}</span></span>
+                  </>
+                )}
+              </div>
+
+              {/* QR */}
+              <div className="flex justify-center">
+                <div className="p-2 rounded-xl bg-white">
+                  <img src={qrSrc} alt="Deposit address QR" className="w-40 h-40" />
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03] border border-white/8">
+                <div>
+                  <p className="text-xs text-slate-500">Send exactly</p>
+                  <p className="text-lg font-bold text-white">{amount} USDT</p>
+                </div>
+                <CopyButton value={amount} />
+              </div>
+
+              {/* Address */}
+              <div className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/8 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-500">{deposit.network_label} address</p>
+                  <CopyButton value={deposit.wallet_address} />
+                </div>
+                <p className="text-sm text-white font-mono break-all leading-relaxed">{deposit.wallet_address}</p>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Only send <span className="text-slate-300 font-medium">USDT on the {deposit.network_label}</span> network
+                to this address. Sending any other asset or network may result in permanent loss.
+              </p>
+
+              {/* Tx hash submission */}
+              <div className="space-y-2 pt-1">
+                <label className="text-sm font-medium text-slate-300">Transaction hash</label>
+                <input
+                  value={txHash}
+                  onChange={(e) => setTxHash(e.target.value)}
+                  placeholder="Paste your tx hash after sending"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-sm text-white placeholder:text-slate-600 focus:border-brand-500/50 focus:outline-none font-mono"
+                />
+                <button
+                  onClick={submitTx}
+                  disabled={submitting}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white transition-colors disabled:opacity-60 disabled:cursor-wait"
+                >
+                  {submitting ? 'Submitting…' : "I've sent it — confirm payment"}
+                </button>
+                <p className="text-xs text-slate-600 text-center">
+                  After you submit, please wait for your payment to be confirmed. Credits are added automatically once verified.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BillingPage() {
   const { user, credits, setCredits, setUser } = useAuthStore()
   const [isYearly, setIsYearly]         = useState(false)
   const [ledger, setLedger]             = useState([])
   const [ledgerLoading, setLedgerLoading] = useState(true)
-  const [upgrading, setUpgrading]       = useState(null)
-  const [upgradeError, setUpgradeError] = useState('')
-  const [buyingPack, setBuyingPack]     = useState(null)
-  const [packError, setPackError]       = useState('')
   const [loyalty, setLoyalty]           = useState(null)
-  const [paymentNotice, setPaymentNotice] = useState(null)   // 'success' | 'pending' | 'cancelled'
+  const [paymentNotice, setPaymentNotice] = useState(null)   // 'submitted'
+  const [depositRequest, setDepositRequest] = useState(null) // opens the USDT deposit modal
 
   const currentPlan = user?.plan || 'free'
   const isFreePlan  = currentPlan === 'free'
@@ -418,74 +687,37 @@ export default function BillingPage() {
       .catch(() => {})
   }, [])
 
-  // Handle the redirect back from Dodo's hosted checkout. Dodo appends
-  // ?status=…&payment_id=… to the return URL. Credits are allocated by the
-  // webhook, which may land a beat after the browser returns — so we poll the
-  // balance for a few seconds until it updates.
-  useEffect(() => {
-    const params  = new URLSearchParams(window.location.search)
-    const status  = (params.get('status') || params.get('payment') || '').toLowerCase()
-    const fromDodo = status || params.get('payment_id')
-    if (!fromDodo) return
-
-    // Strip the query params so a refresh doesn't re-trigger this.
-    window.history.replaceState({}, '', window.location.pathname)
-
-    if (status === 'cancelled' || status === 'failed') {
-      setPaymentNotice('cancelled')
-      return
-    }
-
-    setPaymentNotice('pending')
-    const startCredits = credits
-    let attempts = 0
-    let cancelled = false
-
-    async function poll() {
-      attempts += 1
-      const latest = await refreshBalance()
-      if (cancelled) return
-      if (typeof latest === 'number' && latest > startCredits) {
-        setPaymentNotice('success')
-        return
-      }
-      if (attempts >= 6) {
-        // Webhook not in yet — payment is still being confirmed.
-        setPaymentNotice(latest > startCredits ? 'success' : 'pending')
-        return
-      }
-      setTimeout(poll, 2500)
-    }
-    poll()
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  async function handleBuyPack(packId) {
-    setBuyingPack(packId)
-    setPackError('')
-    try {
-      const { data } = await api.post('/billing/dodo/buy-pack/', { pack_id: packId })
-      window.location.href = data.checkout_url
-    } catch (err) {
-      setPackError(err.response?.data?.detail || 'Could not create payment. Please try again.')
-      setBuyingPack(null)
-    }
+  // Open the USDT deposit modal for a credit pack.
+  function handleBuyPack(packId) {
+    const pack = PACKS.find((p) => p.id === packId)
+    if (!pack) return
+    setDepositRequest({
+      type:   'pack',
+      pack_id: packId,
+      label:  `${pack.credits.toLocaleString()} credit pack`,
+      amount: pack.price,
+    })
   }
 
-  async function handleUpgrade(planId) {
-    setUpgrading(planId)
-    setUpgradeError('')
-    try {
-      const { data } = await api.post('/billing/dodo/create-checkout/', {
-        plan: planId,
-        billing_period: isYearly ? 'yearly' : 'monthly',
-      })
-      window.location.href = data.checkout_url
-    } catch (err) {
-      setUpgradeError(err.response?.data?.detail || 'Could not create payment. Please try again.')
-      setUpgrading(null)
-    }
+  // Open the USDT deposit modal for a plan.
+  function handleUpgrade(planId) {
+    const plan = PLANS.find((p) => p.id === planId)
+    if (!plan) return
+    const amount = isYearly ? plan.monthlyPrice * 10 : plan.monthlyPrice
+    setDepositRequest({
+      type:           'plan',
+      plan:           planId,
+      billing_period: isYearly ? 'yearly' : 'monthly',
+      label:          `${plan.name} plan (${isYearly ? 'yearly' : 'monthly'})`,
+      amount,
+    })
+  }
+
+  // Called once the user submits their tx hash — show the pending banner and
+  // refresh the balance/history so the new deposit appears.
+  function handleDepositSubmitted() {
+    setPaymentNotice('submitted')
+    refreshBalance()
   }
 
   const barColor = usedPct > 80 ? 'bg-red-500' : usedPct > 50 ? 'bg-amber-500' : 'bg-brand-500'
@@ -497,26 +729,13 @@ export default function BillingPage() {
         <p className="text-sm text-slate-400 mt-1">Manage your subscription and credit usage.</p>
       </div>
 
-      {paymentNotice === 'success' && (
-        <div className="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm flex items-center gap-2">
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Payment confirmed — your credits have been added. Thank you!
-        </div>
-      )}
-      {paymentNotice === 'pending' && (
+      {paymentNotice === 'submitted' && (
         <div className="px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-center gap-2">
           <svg className="w-4 h-4 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          Payment received — we're confirming it now. Your credits will appear here within a minute.
-        </div>
-      )}
-      {paymentNotice === 'cancelled' && (
-        <div className="px-4 py-3 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-300 text-sm">
-          Payment cancelled — no charge was made. You can try again any time.
+          Payment submitted — please wait while we confirm it on-chain. Your credits will be added automatically once verified.
         </div>
       )}
 
@@ -569,10 +788,7 @@ export default function BillingPage() {
       </div>
 
       {/* Credit pack top-ups */}
-      {packError && (
-        <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{packError}</div>
-      )}
-      <CreditPacksSection onBuy={handleBuyPack} buying={buyingPack} />
+      <CreditPacksSection onBuy={handleBuyPack} />
 
       {/* Plan selector with monthly/yearly toggle */}
       <div>
@@ -608,12 +824,6 @@ export default function BillingPage() {
           </div>
         )}
 
-        {upgradeError && (
-          <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
-            {upgradeError}
-          </div>
-        )}
-
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {PLANS.map((plan) => (
             <PlanCard
@@ -622,13 +832,12 @@ export default function BillingPage() {
               isCurrent={plan.id === currentPlan}
               isYearly={isYearly}
               onUpgrade={handleUpgrade}
-              isUpgrading={upgrading === plan.id}
             />
           ))}
         </div>
 
         <p className="text-xs text-slate-600 mt-4 text-center">
-          Payments processed securely by card via Dodo Payments. All major credit and debit cards accepted.
+          Paid in USDT on TRON (TRC20), BSC (BEP20), or Ethereum (ERC20). Credits are added once your deposit is verified on-chain.
         </p>
       </div>
 
@@ -696,6 +905,14 @@ export default function BillingPage() {
       </div>
 
       <InvoicesSection />
+
+      {depositRequest && (
+        <CryptoDepositModal
+          request={depositRequest}
+          onClose={() => setDepositRequest(null)}
+          onSubmitted={handleDepositSubmitted}
+        />
+      )}
     </div>
   )
 }

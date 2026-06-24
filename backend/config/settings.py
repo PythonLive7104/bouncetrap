@@ -9,8 +9,8 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 # Behind nginx (SSL termination → proxies http to web:8000). Trust the proxy's
-# X-Forwarded-Proto/Host so request.build_absolute_uri() produces https:// URLs
-# (e.g. the Dodo return_url), avoiding nginx 301-redirects on http:// links.
+# X-Forwarded-Proto/Host so request.build_absolute_uri() produces https:// URLs,
+# avoiding nginx 301-redirects on http:// links.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 
@@ -210,16 +210,21 @@ ANYMAIL = {
     'RESEND_API_KEY': config('RESEND_API_KEY', default=''),
 }
 
-# ── Dodo Payments ─────────────────────────────────────────────────────────
-# Card / fiat checkout via Dodo Payments (merchant of record). A single
-# "Pay What You Want" one-time product (DODO_PRODUCT_ID) covers every plan and
-# credit pack — the exact price is passed per checkout (see billing.views).
-DODO_API_KEY        = config('DODO_API_KEY', default='')
-DODO_WEBHOOK_SECRET = config('DODO_WEBHOOK_SECRET', default='')
-DODO_PRODUCT_ID     = config('DODO_PRODUCT_ID', default='')
-# 'test' uses the Dodo sandbox; 'live' uses production. Anything but 'live' = test.
-DODO_MODE           = config('DODO_MODE', default='test')
-DODO_API_BASE       = 'https://live.dodopayments.com' if DODO_MODE == 'live' else 'https://test.dodopayments.com'
+# ── USDT crypto deposits ──────────────────────────────────────────────────
+# Manual USDT top-ups. The user sends USDT to one of these static receiving
+# addresses and submits their tx hash; an admin verifies it on-chain and
+# confirms the deposit (see billing.views / billing.models.CryptoDeposit).
+USDT_WALLETS = {
+    'erc20': config('USDT_WALLET_ERC20', default='0x56667ead502dfa59d07fc2ee262098db50ce1def'),
+    'bep20': config('USDT_WALLET_BEP20', default='0x56667ead502dfa59d07fc2ee262098db50ce1def'),
+    'trc20': config('USDT_WALLET_TRC20', default='TZ4vEwW6s6c6goDAxwZQ1pbTcXJuTA33U1'),
+}
+# Display metadata per network — label + typical confirmations shown to users.
+USDT_NETWORKS = [
+    {'id': 'trc20', 'label': 'TRON (TRC20)',      'confirmations': 20},
+    {'id': 'bep20', 'label': 'BSC (BEP20)',       'confirmations': 15},
+    {'id': 'erc20', 'label': 'Ethereum (ERC20)',  'confirmations': 12},
+]
 
 # ── Inbox Placement seed accounts ────────────────────────────────────────
 INBOX_SEED_ACCOUNTS = [
