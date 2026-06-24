@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
@@ -280,10 +280,27 @@ function SidebarContent({ user, credits, onNavClick, onLogout }) {
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, credits, logout, setUser } = useAuthStore()
+  const { user, credits, logout, setUser, setCredits } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const pageTitle = PAGE_TITLE[location.pathname] || 'Dashboard'
+
+  // Pull the latest credits + plan from the server on every dashboard load and
+  // on navigation, so an approved crypto deposit (credited server-side by an
+  // admin) reflects without the user having to log out / switch browsers.
+  useEffect(() => {
+    let cancelled = false
+    api.get('/billing/credits/')
+      .then(({ data }) => {
+        if (cancelled) return
+        if (typeof data.credits === 'number') setCredits(data.credits)
+        if (data.plan) {
+          setUser((prev) => (prev ? { ...prev, plan: data.plan, credits: data.credits } : prev))
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [location.pathname, setCredits, setUser])
 
   function handleLogout() {
     logout()

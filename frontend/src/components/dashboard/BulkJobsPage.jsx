@@ -4,6 +4,23 @@ import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 import SubscriptionExpiredModal from './SubscriptionExpiredModal'
 
+// Pull a readable message out of an axios error. DRF returns `{detail: "..."}`
+// for APIException, but serializer validation returns field arrays like
+// `{file: ["Only .csv and .txt files are accepted."]}` — surface those too so
+// the user sees the real reason instead of a generic "try again".
+function extractError(err) {
+  if (!err.response) return 'Network error — check your connection and try again.'
+  const data = err.response.data
+  if (typeof data === 'string') return data
+  if (data?.detail) return data.detail
+  if (data && typeof data === 'object') {
+    const first = Object.values(data).flat().find((v) => typeof v === 'string')
+    if (first) return first
+  }
+  if (err.response.status >= 500) return 'Server error while processing the upload. Please try again or contact support.'
+  return 'Upload failed. Please try again.'
+}
+
 const STATUS_BADGE = {
   queued:     { label: 'Queued',     cls: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
   processing: { label: 'Processing', cls: 'bg-brand-500/15 text-brand-400 border-brand-500/30', pulse: true },
@@ -324,7 +341,7 @@ export default function BulkJobsPage() {
       } else if (err.response?.status === 402 && err.response?.data?.detail?.includes('subscription')) {
         setShowExpiredModal(true)
       } else {
-        setUploadError(err.response?.data?.detail || 'Upload failed. Please try again.')
+        setUploadError(extractError(err))
       }
     } finally { setUploading(false) }
   }
