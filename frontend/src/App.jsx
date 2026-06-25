@@ -5,6 +5,7 @@ import LandingPage from './components/landing/LandingPage'
 import LoginPage from './components/auth/LoginPage'
 import RegisterPage from './components/auth/RegisterPage'
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage'
+import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import GitHubCallbackPage from './components/auth/GitHubCallbackPage'
 import GoogleCallbackPage from './components/auth/GoogleCallbackPage'
 import ConfirmEmailPage from './components/auth/ConfirmEmailPage'
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/github/callback" element={<GitHubCallbackPage />} />
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
           <Route path="/verify-email" element={<ConfirmEmailPage />} />
