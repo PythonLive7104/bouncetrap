@@ -156,7 +156,7 @@ function HealthBadge({ grade }) {
   )
 }
 
-function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadReport, userPlan }) {
+function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadZip, onDownloadReport, userPlan }) {
   const fmt = (n) => (n ?? 0).toLocaleString()
   const isDone      = job.status === 'done'
   const isActive    = job.status === 'queued' || job.status === 'processing'
@@ -208,6 +208,13 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadReport
               PDF Report
             </button>
           )}
+          <button onClick={() => onDownloadZip(job.id)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:text-white hover:border-white/20 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            Split ZIP
+          </button>
           <button onClick={() => onDownload(job.id)}
             className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors shadow-sm">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -369,6 +376,18 @@ export default function BulkJobsPage() {
     } catch { alert('Download failed. Please try again.') }
   }
 
+  async function handleDownloadZip(id) {
+    try {
+      const res = await api.get(`/verify/jobs/${id}/download-zip/`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `bouncetrap_results_${id.slice(0, 8)}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { alert('Download failed. Please try again.') }
+  }
+
   async function handleDownloadReport(id) {
     try {
       const res = await api.get(`/verify/jobs/${id}/report/`, { responseType: 'blob' })
@@ -429,7 +448,7 @@ export default function BulkJobsPage() {
           </div>
           <div className="divide-y divide-white/5">
             {activeJobs.map((job) => (
-              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
+              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadZip={handleDownloadZip} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
             ))}
           </div>
         </div>
@@ -467,7 +486,7 @@ export default function BulkJobsPage() {
         ) : (
           <div className="divide-y divide-white/5">
             {jobs.map((job) => (
-              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
+              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadZip={handleDownloadZip} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
             ))}
           </div>
         )}

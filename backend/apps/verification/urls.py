@@ -18,6 +18,7 @@ urlpatterns = [
     path('jobs/',                        views.BulkJobListView.as_view(),      name='verify-jobs-list'),
     path('jobs/<uuid:pk>/',              views.BulkJobDetailView.as_view(),    name='verify-jobs-detail'),
     path('jobs/<uuid:pk>/download/',     views.BulkJobDownloadView.as_view(),  name='verify-jobs-download'),
+    path('jobs/<uuid:pk>/download-zip/', views.BulkJobDownloadZipView.as_view(), name='verify-jobs-download-zip'),
     path('jobs/<uuid:pk>/report/',       views.BulkJobReportView.as_view(),    name='verify-jobs-report'),
     path('jobs/<uuid:pk>/cancel/',       views.BulkJobCancelView.as_view(),    name='verify-jobs-cancel'),
     path('jobs/<uuid:pk>/pause/',        views.BulkJobPauseView.as_view(),     name='verify-jobs-pause'),

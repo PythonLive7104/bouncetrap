@@ -1,5 +1,8 @@
 import io
 import os
+import csv
+import zipfile
+import tempfile
 import mimetypes
 from datetime import timedelta
 from django.db.models import Count, Sum, Q
@@ -244,6 +247,70 @@ class BulkJobDownloadView(APIView):
 
         filename = f'bouncetrap_results_{job.pk}.csv'
         response = StreamingHttpResponse(file_iterator(job.result_file_path), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+# Columns shared by the flat CSV export and the split ZIP export.
+_RESULT_FIELDS = [
+    'email', 'status', 'sub_status', 'score',
+    'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
+    'mx_found', 'smtp_valid', 'mx_record', 'domain',
+]
+
+
+class BulkJobDownloadZipView(APIView):
+    """
+    GET /api/v1/verify/jobs/{id}/download-zip/
+    Return a ZIP of the results split into separate CSV files — one per status
+    (valid/invalid/risky/unknown) plus flag-based lists (disposable/role_based/
+    catch_all). Empty categories are omitted.
+    """
+
+    def get(self, request, pk):
+        try:
+            job = BulkJob.objects.get(pk=pk, user=request.user)
+        except BulkJob.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if job.status != BulkJob.STATUS_DONE:
+            return Response({'detail': 'Job is not complete yet.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Status-based buckets, then flag-based buckets (a row can appear in more than one).
+        status_files = {'valid': [], 'invalid': [], 'risky': [], 'unknown': []}
+        flag_files = {'disposable': [], 'role_based': [], 'catch_all': []}
+
+        for r in job.results.values(*_RESULT_FIELDS).iterator(chunk_size=500):
+            status_files.setdefault(r['status'], []).append(r)
+            if r['is_disposable']:
+                flag_files['disposable'].append(r)
+            if r['is_role_based']:
+                flag_files['role_based'].append(r)
+            if r['is_catch_all']:
+                flag_files['catch_all'].append(r)
+
+        def write_csv(rows):
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=_RESULT_FIELDS)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return buf.getvalue().encode('utf-8')
+
+        tmp = tempfile.SpooledTemporaryFile(max_size=5 * 1024 * 1024)
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for name, rows in {**status_files, **flag_files}.items():
+                if rows:
+                    zf.writestr(f'{name}.csv', write_csv(rows))
+        tmp.seek(0)
+
+        def file_iterator(fh, chunk_size=8192):
+            with fh:
+                while chunk := fh.read(chunk_size):
+                    yield chunk
+
+        filename = f'bouncetrap_results_{job.pk}.zip'
+        response = StreamingHttpResponse(file_iterator(tmp), content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
