@@ -156,7 +156,15 @@ function HealthBadge({ grade }) {
   )
 }
 
-function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadZip, onDownloadReport, userPlan }) {
+// Status buckets a user can download on their own. Order matters — valid first.
+const CATEGORY_BUTTONS = [
+  { key: 'valid',   label: 'Valid',   countKey: 'valid_count',   cls: 'text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10' },
+  { key: 'invalid', label: 'Invalid', countKey: 'invalid_count', cls: 'text-red-300 border-red-500/30 hover:bg-red-500/10' },
+  { key: 'risky',   label: 'Risky',   countKey: 'risky_count',   cls: 'text-amber-300 border-amber-500/30 hover:bg-amber-500/10' },
+  { key: 'unknown', label: 'Unknown', countKey: 'unknown_count', cls: 'text-slate-300 border-white/15 hover:bg-white/5' },
+]
+
+function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadCategory, onDownloadReport, userPlan }) {
   const fmt = (n) => (n ?? 0).toLocaleString()
   const isDone      = job.status === 'done'
   const isActive    = job.status === 'queued' || job.status === 'processing'
@@ -208,19 +216,26 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadZip, o
               PDF Report
             </button>
           )}
-          <button onClick={() => onDownloadZip(job.id)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:text-white hover:border-white/20 transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            Split ZIP
-          </button>
+          {CATEGORY_BUTTONS.map(({ key, label, countKey, cls }) => {
+            const count = job[countKey] || 0
+            if (count === 0) return null
+            return (
+              <button key={key} onClick={() => onDownloadCategory(job.id, key)}
+                title={`Download ${count.toLocaleString()} ${label.toLowerCase()} emails as CSV`}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${cls}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {label} <span className="opacity-60">({count.toLocaleString()})</span>
+              </button>
+            )
+          })}
           <button onClick={() => onDownload(job.id)}
             className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors shadow-sm">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            Download CSV
+            All (CSV)
           </button>
         </>
       )}
@@ -376,13 +391,13 @@ export default function BulkJobsPage() {
     } catch { alert('Download failed. Please try again.') }
   }
 
-  async function handleDownloadZip(id) {
+  async function handleDownloadCategory(id, category) {
     try {
-      const res = await api.get(`/verify/jobs/${id}/download-zip/`, { responseType: 'blob' })
+      const res = await api.get(`/verify/jobs/${id}/download/${category}/`, { responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       const a = document.createElement('a')
       a.href = url
-      a.download = `bouncetrap_results_${id.slice(0, 8)}.zip`
+      a.download = `bouncetrap_${category}_${id.slice(0, 8)}.csv`
       a.click()
       URL.revokeObjectURL(url)
     } catch { alert('Download failed. Please try again.') }
@@ -448,7 +463,7 @@ export default function BulkJobsPage() {
           </div>
           <div className="divide-y divide-white/5">
             {activeJobs.map((job) => (
-              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadZip={handleDownloadZip} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
+              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadCategory={handleDownloadCategory} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
             ))}
           </div>
         </div>
@@ -486,7 +501,7 @@ export default function BulkJobsPage() {
         ) : (
           <div className="divide-y divide-white/5">
             {jobs.map((job) => (
-              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadZip={handleDownloadZip} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
+              <JobRow key={job.id} job={job} onCancel={handleCancel} onPause={handlePause} onResume={handleResume} onDownload={handleDownload} onDownloadCategory={handleDownloadCategory} onDownloadReport={handleDownloadReport} userPlan={user?.plan} />
             ))}
           </div>
         )}

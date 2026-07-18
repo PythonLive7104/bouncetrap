@@ -314,6 +314,55 @@ class BulkJobDownloadZipView(APIView):
         return response
 
 
+class BulkJobDownloadCategoryView(APIView):
+    """
+    GET /api/v1/verify/jobs/{id}/download/{category}/
+    Stream a single category as CSV so users can grab just the valid (or any
+    other) addresses directly, without downloading the whole split ZIP.
+    Categories are the status buckets (valid/invalid/risky/unknown) plus the
+    flag-based lists (disposable/role_based/catch_all).
+    """
+
+    STATUS_CATEGORIES = {'valid', 'invalid', 'risky', 'unknown'}
+    FLAG_CATEGORIES = {
+        'disposable': 'is_disposable',
+        'role_based': 'is_role_based',
+        'catch_all':  'is_catch_all',
+    }
+
+    def get(self, request, pk, category):
+        try:
+            job = BulkJob.objects.get(pk=pk, user=request.user)
+        except BulkJob.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if job.status != BulkJob.STATUS_DONE:
+            return Response({'detail': 'Job is not complete yet.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        qs = job.results.values(*_RESULT_FIELDS)
+        if category in self.STATUS_CATEGORIES:
+            qs = qs.filter(status=category)
+        elif category in self.FLAG_CATEGORIES:
+            qs = qs.filter(**{self.FLAG_CATEGORIES[category]: True})
+        else:
+            return Response({'detail': 'Unknown category.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        def row_iter():
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=_RESULT_FIELDS)
+            writer.writeheader()
+            yield buf.getvalue()
+            for row in qs.iterator(chunk_size=500):
+                buf.seek(0); buf.truncate(0)
+                writer.writerow(row)
+                yield buf.getvalue()
+
+        filename = f'bouncetrap_{category}_{job.pk}.csv'
+        response = StreamingHttpResponse(row_iter(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
 class BulkJobCancelView(APIView):
     """POST /api/v1/verify/jobs/{id}/cancel/ — Cancel a queued or processing job."""
 

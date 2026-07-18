@@ -9,13 +9,20 @@ import api from '../../services/api'
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function StatCard({ icon, label, value, sub, accent = false, loading = false }) {
+function StatCard({ icon, label, value, sub, accent = false, loading = false, iconTo }) {
+  const iconClasses = `w-9 h-9 rounded-xl flex items-center justify-center ${accent ? 'bg-brand-800/60 text-brand-300' : 'bg-white/[0.06] text-slate-400'}`
   return (
     <div className={`p-5 rounded-2xl border ${accent ? 'bg-brand-950/50 border-brand-800/40' : 'bg-white/[0.03] border-white/7'}`}>
       <div className="flex items-start justify-between mb-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${accent ? 'bg-brand-800/60 text-brand-300' : 'bg-white/[0.06] text-slate-400'}`}>
-          {icon}
-        </div>
+        {iconTo ? (
+          <Link to={iconTo} className={`${iconClasses} hover:text-white hover:bg-white/[0.12] transition-colors`} title="Go to Bulk Jobs">
+            {icon}
+          </Link>
+        ) : (
+          <div className={iconClasses}>
+            {icon}
+          </div>
+        )}
       </div>
       {loading ? (
         <div className="space-y-2">
@@ -170,6 +177,7 @@ export default function DashboardOverview() {
           label="Bulk jobs"
           value={jobsDone.toLocaleString()}
           sub={jobsActive > 0 ? `${jobsActive} currently active` : 'All jobs complete'}
+          iconTo="/dashboard/bulk"
           icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>}
         />
       </div>
