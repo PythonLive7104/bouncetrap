@@ -2,7 +2,6 @@ import io
 import os
 import csv
 import zipfile
-import tempfile
 import mimetypes
 from datetime import timedelta
 from django.db.models import Count, Sum, Q
@@ -297,21 +296,21 @@ class BulkJobDownloadZipView(APIView):
                 writer.writerow(row)
             return buf.getvalue().encode('utf-8')
 
-        tmp = tempfile.SpooledTemporaryFile(max_size=5 * 1024 * 1024)
-        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Build the whole archive in memory and return it with an explicit
+        # Content-Length. Streaming a chunked zip through gunicorn/nginx can be
+        # truncated mid-transfer, and an unzip tool then recovers only the first
+        # entry — so we hand back the complete bytes in one HttpResponse.
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for name, rows in {**status_files, **flag_files}.items():
                 if rows:
                     zf.writestr(f'{name}.csv', write_csv(rows))
-        tmp.seek(0)
-
-        def file_iterator(fh, chunk_size=8192):
-            with fh:
-                while chunk := fh.read(chunk_size):
-                    yield chunk
+        data = buf.getvalue()
 
         filename = f'bouncetrap_results_{job.pk}.zip'
-        response = StreamingHttpResponse(file_iterator(tmp), content_type='application/zip')
+        response = HttpResponse(data, content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = str(len(data))
         return response
 
 
