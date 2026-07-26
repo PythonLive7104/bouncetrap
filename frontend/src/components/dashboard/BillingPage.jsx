@@ -76,7 +76,7 @@ const PACKS = [
   { id: 'pack_25k',  credits: 25_000,  price: 20,  label: '25K' },
   { id: 'pack_50k',  credits: 50_000,  price: 40,  label: '50K' },
   { id: 'pack_100k', credits: 100_000, price: 70,  label: '100K' },
-  { id: 'pack_200k', credits: 200_000, price: 140, label: '200K' },
+  { id: 'pack_200k', credits: 200_000, price: 110, label: '200K' },
   { id: 'pack_400k', credits: 400_000, price: 230, label: '400K' },
 ]
 

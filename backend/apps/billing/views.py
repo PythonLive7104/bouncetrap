@@ -31,7 +31,7 @@ CREDIT_PACKS = [
     {'id': 'pack_25k',  'credits': 25_000,  'price_usd': '20.00',  'label': '25,000 credits'},
     {'id': 'pack_50k',  'credits': 50_000,  'price_usd': '40.00',  'label': '50,000 credits'},
     {'id': 'pack_100k', 'credits': 100_000, 'price_usd': '70.00',  'label': '100,000 credits'},
-    {'id': 'pack_200k', 'credits': 200_000, 'price_usd': '140.00', 'label': '200,000 credits'},
+    {'id': 'pack_200k', 'credits': 200_000, 'price_usd': '110.00', 'label': '200,000 credits'},
     {'id': 'pack_400k', 'credits': 400_000, 'price_usd': '230.00', 'label': '400,000 credits'},
 ]
 

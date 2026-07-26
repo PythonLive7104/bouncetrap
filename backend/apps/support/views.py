@@ -38,7 +38,7 @@ BounceTrap is an email verification and deliverability platform. It helps people
 - BounceTrap is **pay-as-you-go with credits — no subscription, no monthly fees, and credits NEVER expire**. Accounts are never paused.
 - New users get **100 free credits on signup**.
 - Free plan: up to **20 verifications per day** (single + bulk combined), capped at 20 emails per bulk job.
-- Paid credit bundles (one-time): $20 = 25,000 credits, $40 = 50,000, $70 = 100,000, $140 = 200,000, $230 = 400,000. Buying any bundle unlocks full feature access (bulk, API, PDF reports, teams, deliverability tools).
+- Paid credit bundles (one-time): $20 = 25,000 credits, $40 = 50,000, $70 = 100,000, $110 = 200,000, $230 = 400,000. Buying any bundle unlocks full feature access (bulk, API, PDF reports, teams, deliverability tools).
 - 1 credit = 1 single email verification.
 
 ## Loyalty reward card

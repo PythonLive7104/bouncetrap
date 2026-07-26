@@ -215,9 +215,9 @@ ANYMAIL = {
 # addresses and submits their tx hash; an admin verifies it on-chain and
 # confirms the deposit (see billing.views / billing.models.CryptoDeposit).
 USDT_WALLETS = {
-    'erc20': config('USDT_WALLET_ERC20', default='0x56667ead502dfa59d07fc2ee262098db50ce1def'),
-    'bep20': config('USDT_WALLET_BEP20', default='0x56667ead502dfa59d07fc2ee262098db50ce1def'),
-    'trc20': config('USDT_WALLET_TRC20', default='TZ4vEwW6s6c6goDAxwZQ1pbTcXJuTA33U1'),
+    'erc20': config('USDT_WALLET_ERC20', default=''),
+    'bep20': config('USDT_WALLET_BEP20', default=''),
+    'trc20': config('USDT_WALLET_TRC20', default=''),
 }
 # Display metadata per network — label + typical confirmations shown to users.
 USDT_NETWORKS = [
