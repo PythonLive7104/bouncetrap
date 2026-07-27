@@ -125,6 +125,36 @@ def _detect_email_column(headers: list[str]) -> str:
     return headers[0] if headers else 'email'
 
 
+def iter_result_rows(queryset, fields, batch_size=2000):
+    """
+    Walk a result queryset in primary-key order, yielding dicts of `fields`.
+
+    Deliberately avoids QuerySet.iterator(), which on PostgreSQL opens a named
+    server-side cursor. Those cursors do not survive a connection being
+    recycled — exports have already died in production with
+    `cursor "_django_curs_..." does not exist`, and on a streaming response
+    that failure arrives after the headers, silently truncating the download.
+    Keyset pagination re-queries on each batch, so it is safe across
+    connections while keeping memory flat.
+    """
+    last_pk = None
+    while True:
+        page = queryset.order_by('pk')
+        if last_pk is not None:
+            page = page.filter(pk__gt=last_pk)
+
+        chunk = list(page.values('pk', *fields)[:batch_size])
+        if not chunk:
+            return
+
+        for row in chunk:
+            last_pk = row['pk']
+            yield {f: row[f] for f in fields}
+
+        if len(chunk) < batch_size:
+            return
+
+
 @transaction.atomic
 def refund_unused_credits(job_id: str) -> int:
     """
@@ -463,7 +493,7 @@ def _write_result_csv(job: BulkJob, emails: list[str] | None = None) -> str:
     os.makedirs(result_dir, exist_ok=True)
     result_path = os.path.join(result_dir, f'job_{job.pk}.csv')
 
-    rows = job.results.values(*fields).iterator(chunk_size=500)
+    rows = iter_result_rows(job.results.all(), fields)
 
     with open(result_path, 'w', newline='', encoding='utf-8') as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)

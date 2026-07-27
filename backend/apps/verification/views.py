@@ -22,7 +22,9 @@ from .serializers import (
     BulkUploadSerializer,
 )
 from .services.verifier import verify_email
-from .tasks import process_bulk_job, refund_unused_credits, _read_emails_from_file
+from .tasks import (
+    process_bulk_job, refund_unused_credits, iter_result_rows, _read_emails_from_file,
+)
 from apps.billing.credits import deduct_credits, InsufficientCredits, SubscriptionExpired
 from apps.billing.models import CreditLedger
 
@@ -292,7 +294,7 @@ def _stream_results_csv(queryset, filename):
         writer = csv.DictWriter(buf, fieldnames=_RESULT_FIELDS)
         writer.writeheader()
         yield buf.getvalue()
-        for row in queryset.iterator(chunk_size=500):
+        for row in iter_result_rows(queryset, _RESULT_FIELDS):
             buf.seek(0); buf.truncate(0)
             writer.writerow(row)
             yield buf.getvalue()
@@ -333,7 +335,7 @@ class BulkJobDownloadView(APIView):
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
             return response
 
-        return _stream_results_csv(job.results.values(*_RESULT_FIELDS), filename)
+        return _stream_results_csv(job.results.all(), filename)
 
 
 class BulkJobDownloadZipView(APIView):
@@ -358,7 +360,7 @@ class BulkJobDownloadZipView(APIView):
         status_files = {'valid': [], 'invalid': [], 'risky': [], 'unknown': []}
         flag_files = {'disposable': [], 'role_based': [], 'catch_all': []}
 
-        for r in job.results.values(*_RESULT_FIELDS).iterator(chunk_size=500):
+        for r in iter_result_rows(job.results.all(), _RESULT_FIELDS):
             status_files.setdefault(r['status'], []).append(r)
             if r['is_disposable']:
                 flag_files['disposable'].append(r)
