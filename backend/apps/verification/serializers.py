@@ -21,6 +21,8 @@ class VerificationResultSerializer(serializers.ModelSerializer):
 class BulkJobSerializer(serializers.ModelSerializer):
     progress_pct      = serializers.IntegerField(read_only=True)
     local_engine_pct  = serializers.IntegerField(read_only=True)
+    has_results       = serializers.BooleanField(read_only=True)
+    is_partial        = serializers.BooleanField(read_only=True)
 
     class Meta:
         model  = BulkJob
@@ -28,8 +30,8 @@ class BulkJobSerializer(serializers.ModelSerializer):
             'id', 'filename', 'status',
             'total_count', 'processed_count', 'progress_pct',
             'valid_count', 'invalid_count', 'risky_count', 'unknown_count',
-            'duplicate_count', 'credits_used', 'local_engine_pct',
-            'health_grade', 'health_advice',
+            'duplicate_count', 'credits_used', 'credits_refunded', 'local_engine_pct',
+            'health_grade', 'health_advice', 'has_results', 'is_partial',
             'error_message', 'created_at', 'completed_at',
         )
         read_only_fields = fields

@@ -39,6 +39,12 @@ class BulkJob(models.Model):
     credits_used     = models.IntegerField(default=0)
     deep_checks_made = models.IntegerField(default=0)   # internal; not exposed in API as vendor name
 
+    # Credits are reserved (deducted) up front for the whole list so a job can
+    # never run out mid-way; whatever is not processed is refunded when the job
+    # reaches a terminal state.
+    credits_reserved = models.IntegerField(default=0)
+    credits_refunded = models.IntegerField(default=0)
+
     health_grade  = models.CharField(max_length=1, blank=True, default='')
     health_advice = models.JSONField(default=list)
 
@@ -62,6 +68,23 @@ class BulkJob(models.Model):
         if self.total_count == 0:
             return 0
         return int(self.processed_count / self.total_count * 100)
+
+    @property
+    def has_results(self) -> bool:
+        """
+        True when the job produced rows the user can download — including jobs
+        that stopped early (failed / cancelled / paused). Credits were spent on
+        those rows, so the results must stay reachable.
+        """
+        return self.processed_count > 0
+
+    @property
+    def is_partial(self) -> bool:
+        """Stopped before finishing but has results the user paid for."""
+        return (
+            self.status in (self.STATUS_FAILED, self.STATUS_CANCELLED, self.STATUS_PAUSED)
+            and self.processed_count > 0
+        )
 
     @property
     def local_engine_pct(self) -> int:

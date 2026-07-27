@@ -22,7 +22,7 @@ from .serializers import (
     BulkUploadSerializer,
 )
 from .services.verifier import verify_email
-from .tasks import process_bulk_job
+from .tasks import process_bulk_job, refund_unused_credits, _read_emails_from_file
 from apps.billing.credits import deduct_credits, InsufficientCredits, SubscriptionExpired
 from apps.billing.models import CreditLedger
 
@@ -180,12 +180,48 @@ class BulkUploadView(APIView):
             for chunk in upload.chunks():
                 fh.write(chunk)
 
+        # Check the balance covers the whole list *before* creating the job, so
+        # an under-funded upload is rejected at the door instead of dying
+        # part-way through. The worker re-checks and reserves the credits
+        # atomically — this is the fast, friendly rejection.
+        emails = _read_emails_from_file(file_path, email_column)
+        row_limit = PLAN_ROW_LIMITS.get(request.user.plan, PLAN_ROW_LIMITS['paid'])
+        needed = min(len(emails), row_limit)
+
+        if needed == 0:
+            os.remove(file_path)
+            return Response(
+                {'detail': 'No email addresses found in that file. Check the file '
+                           'has one email per line, or pick the right column for a CSV.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.user.credits < needed:
+            os.remove(file_path)
+            return Response(
+                {
+                    'detail': (
+                        f'This list has {needed:,} email{"s" if needed != 1 else ""} but you '
+                        f'only have {request.user.credits:,} credit'
+                        f'{"s" if request.user.credits != 1 else ""}. '
+                        f'Add {needed - request.user.credits:,} more credits and upload again — '
+                        f'nothing was charged and no job was started.'
+                    ),
+                    'credits_required':  needed,
+                    'credits_available': request.user.credits,
+                    'credits_short':     needed - request.user.credits,
+                    'upgrade_url':       '/dashboard/billing',
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
         # Create job record
         job = BulkJob.objects.create(
             user         = request.user,
             filename     = upload.name,
             file_path    = file_path,
             email_column = email_column,
+            total_count  = needed,
         )
 
         # Enqueue Celery task
@@ -221,6 +257,51 @@ class BulkJobDetailView(generics.RetrieveAPIView):
         return BulkJob.objects.filter(user=self.request.user)
 
 
+# Columns shared by the flat CSV export and the split ZIP export.
+_RESULT_FIELDS = [
+    'email', 'status', 'sub_status', 'score',
+    'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
+    'mx_found', 'smtp_valid', 'mx_record', 'domain',
+]
+
+
+def _no_results_response(job):
+    """
+    Guard for the download endpoints. Results are downloadable as soon as any
+    row has been verified — a job that stopped early (failed / cancelled /
+    paused) still spent the user's credits on the rows it did finish, so those
+    must never be locked away. Returns a Response to send, or None to proceed.
+    """
+    if job.has_results:
+        return None
+    if job.status in (BulkJob.STATUS_QUEUED, BulkJob.STATUS_PROCESSING):
+        return Response(
+            {'detail': 'This job is still running — no results to download yet.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response(
+        {'detail': 'This job produced no results.'},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def _stream_results_csv(queryset, filename):
+    """Stream a result queryset as CSV without buffering it all in memory."""
+    def row_iter():
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=_RESULT_FIELDS)
+        writer.writeheader()
+        yield buf.getvalue()
+        for row in queryset.iterator(chunk_size=500):
+            buf.seek(0); buf.truncate(0)
+            writer.writerow(row)
+            yield buf.getvalue()
+
+    response = StreamingHttpResponse(row_iter(), content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
 class BulkJobDownloadView(APIView):
     """
     GET /api/v1/verify/jobs/{id}/download/
@@ -233,29 +314,26 @@ class BulkJobDownloadView(APIView):
         except BulkJob.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        if job.status != BulkJob.STATUS_DONE:
-            return Response({'detail': 'Job is not complete yet.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not job.result_file_path or not os.path.exists(job.result_file_path):
-            return Response({'detail': 'Result file not available.'}, status=status.HTTP_404_NOT_FOUND)
-
-        def file_iterator(path, chunk_size=8192):
-            with open(path, 'rb') as fh:
-                while chunk := fh.read(chunk_size):
-                    yield chunk
+        blocked = _no_results_response(job)
+        if blocked:
+            return blocked
 
         filename = f'bouncetrap_results_{job.pk}.csv'
-        response = StreamingHttpResponse(file_iterator(job.result_file_path), content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
 
+        # Prebuilt CSV is only written when a job finishes. If it is missing
+        # (job stopped early, or the file was cleaned up) build the export
+        # straight from the stored rows rather than 404-ing on paid-for results.
+        if job.result_file_path and os.path.exists(job.result_file_path):
+            def file_iterator(path, chunk_size=8192):
+                with open(path, 'rb') as fh:
+                    while chunk := fh.read(chunk_size):
+                        yield chunk
 
-# Columns shared by the flat CSV export and the split ZIP export.
-_RESULT_FIELDS = [
-    'email', 'status', 'sub_status', 'score',
-    'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
-    'mx_found', 'smtp_valid', 'mx_record', 'domain',
-]
+            response = StreamingHttpResponse(file_iterator(job.result_file_path), content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        return _stream_results_csv(job.results.values(*_RESULT_FIELDS), filename)
 
 
 class BulkJobDownloadZipView(APIView):
@@ -272,8 +350,9 @@ class BulkJobDownloadZipView(APIView):
         except BulkJob.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        if job.status != BulkJob.STATUS_DONE:
-            return Response({'detail': 'Job is not complete yet.'}, status=status.HTTP_400_BAD_REQUEST)
+        blocked = _no_results_response(job)
+        if blocked:
+            return blocked
 
         # Status-based buckets, then flag-based buckets (a row can appear in more than one).
         status_files = {'valid': [], 'invalid': [], 'risky': [], 'unknown': []}
@@ -336,8 +415,9 @@ class BulkJobDownloadCategoryView(APIView):
         except BulkJob.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        if job.status != BulkJob.STATUS_DONE:
-            return Response({'detail': 'Job is not complete yet.'}, status=status.HTTP_400_BAD_REQUEST)
+        blocked = _no_results_response(job)
+        if blocked:
+            return blocked
 
         qs = job.results.values(*_RESULT_FIELDS)
         if category in self.STATUS_CATEGORIES:
@@ -347,20 +427,7 @@ class BulkJobDownloadCategoryView(APIView):
         else:
             return Response({'detail': 'Unknown category.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        def row_iter():
-            buf = io.StringIO()
-            writer = csv.DictWriter(buf, fieldnames=_RESULT_FIELDS)
-            writer.writeheader()
-            yield buf.getvalue()
-            for row in qs.iterator(chunk_size=500):
-                buf.seek(0); buf.truncate(0)
-                writer.writerow(row)
-                yield buf.getvalue()
-
-        filename = f'bouncetrap_{category}_{job.pk}.csv'
-        response = StreamingHttpResponse(row_iter(), content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
+        return _stream_results_csv(qs, f'bouncetrap_{category}_{job.pk}.csv')
 
 
 class BulkJobCancelView(APIView):
@@ -383,7 +450,14 @@ class BulkJobCancelView(APIView):
             from config.celery import app as celery_app
             celery_app.control.revoke(job.celery_task_id, terminate=True)
 
-        return Response({'detail': 'Job cancelled.'})
+        # Credits were reserved for the whole list up front — hand back the
+        # ones for rows that will now never be verified.
+        refunded = refund_unused_credits(str(job.pk))
+
+        return Response({
+            'detail': 'Job cancelled.',
+            'credits_refunded': refunded,
+        })
 
 
 class BulkJobPauseView(APIView):
@@ -695,7 +769,7 @@ def _build_report_pdf(job, user) -> bytes:
         buf, pagesize=A4,
         leftMargin=2*cm, rightMargin=2*cm,
         topMargin=2*cm, bottomMargin=2*cm,
-        title=f'BounceTrap Report — {job.original_filename or str(job.pk)}',
+        title=f'BounceTrap Report — {job.filename or str(job.pk)}',
     )
 
     W, H = A4
@@ -710,7 +784,9 @@ def _build_report_pdf(job, user) -> bytes:
     sub = ParagraphStyle('sub', fontSize=10, textColor=muted,        spaceAfter=0)
     body= ParagraphStyle('body',fontSize=10, textColor=light,        spaceAfter=4, leading=15)
 
-    total   = job.total_count or 1
+    # Percentages are over what was actually verified — a job that stopped early
+    # would otherwise report against rows it never checked.
+    total   = (job.processed_count if job.is_partial else job.total_count) or 1
     valid   = job.valid_count
     invalid = job.invalid_count
     risky   = job.risky_count
@@ -745,7 +821,7 @@ def _build_report_pdf(job, user) -> bytes:
     # ── Meta ─────────────────────────────────────────────────────────────
     completed = job.completed_at.strftime('%Y-%m-%d %H:%M UTC') if job.completed_at else '—'
     meta_rows = [
-        ['File', job.original_filename or str(job.pk)],
+        ['File', job.filename or str(job.pk)],
         ['Generated', completed],
         ['Account',   user.email],
     ]
@@ -845,8 +921,9 @@ class BulkJobReportView(APIView):
         except BulkJob.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        if job.status != BulkJob.STATUS_DONE:
-            return Response({'detail': 'Job is not complete yet.'}, status=status.HTTP_400_BAD_REQUEST)
+        blocked = _no_results_response(job)
+        if blocked:
+            return blocked
 
         pdf_bytes = _build_report_pdf(job, request.user)
         if pdf_bytes is None:

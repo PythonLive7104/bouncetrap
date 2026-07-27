@@ -11,13 +11,15 @@ import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
+from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from celery import shared_task
 
 from .models import BulkJob, VerificationResult
 from .services.verifier import verify_email
-from apps.billing.credits import deduct_credits, InsufficientCredits
+from apps.billing.credits import deduct_credits, add_credits, InsufficientCredits
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -123,6 +125,81 @@ def _detect_email_column(headers: list[str]) -> str:
     return headers[0] if headers else 'email'
 
 
+@transaction.atomic
+def refund_unused_credits(job_id: str) -> int:
+    """
+    Return reserved-but-unprocessed credits to the user.
+
+    Credits are reserved for the whole list before verification starts, so a job
+    that stops early (cancelled, paused-and-cancelled, crashed) is holding
+    credits it never spent. Locks the job row so a cancel racing the worker
+    cannot refund twice; `credits_refunded` records what has already gone back.
+    Returns the amount refunded.
+    """
+    job = BulkJob.objects.select_for_update().get(pk=job_id)
+    owed = job.credits_reserved - job.processed_count - job.credits_refunded
+    if owed <= 0:
+        return 0
+
+    add_credits(
+        job.user_id, owed,
+        operation='refund',
+        reference=f'bulk:{job.pk}',
+        notes='Unused bulk verification credits returned',
+    )
+    job.credits_refunded += owed
+    job.save(update_fields=['credits_refunded'])
+    logger.info('BulkJob %s refunded %d unused credits', job_id, owed)
+    return owed
+
+
+def finalise_partial_job(job, new_status: str, error_message: str = '') -> None:
+    """
+    Close out a job that stopped before finishing every row.
+
+    The rows already verified were paid for, so they must remain downloadable:
+    counts are recomputed from the stored results, the result CSV is written,
+    and the list is scored over what was actually processed. Unused credits are
+    refunded. Safe to call on a job with zero results.
+    """
+    counts = {
+        row['status']: row['n']
+        for row in job.results.values('status').annotate(n=Count('id'))
+    }
+    valid   = counts.get('valid', 0)
+    invalid = counts.get('invalid', 0)
+    risky   = counts.get('risky', 0)
+    unknown = counts.get('unknown', 0)
+    processed = valid + invalid + risky + unknown
+
+    job.valid_count   = valid
+    job.invalid_count = invalid
+    job.risky_count   = risky
+    job.unknown_count = unknown
+    job.processed_count = max(job.processed_count, processed)
+    job.credits_used  = job.processed_count
+    job.status        = new_status
+    if error_message:
+        job.error_message = error_message
+    job.completed_at = job.completed_at or timezone.now()
+
+    if processed:
+        grade, advice = _compute_health(processed, valid, invalid, risky, unknown)
+        job.health_grade  = grade
+        job.health_advice = advice
+        try:
+            job.result_file_path = _write_result_csv(job)
+        except Exception as exc:   # a missing CSV must not hide the DB results
+            logger.warning('Could not write partial CSV for job %s: %s', job.pk, exc)
+
+    job.save()
+
+    try:
+        refund_unused_credits(str(job.pk))
+    except Exception as exc:
+        logger.exception('Refund failed for job %s: %s', job.pk, exc)
+
+
 def _fire_webhook(user, job) -> None:
     """POST job-complete payload to user's webhook URL with HMAC-SHA256 signature."""
     if not user.webhook_url:
@@ -178,14 +255,16 @@ def process_bulk_job(self, job_id: str, start_index: int = 0):
     except Exception as exc:
         logger.exception('BulkJob %s failed with unexpected error: %s', job_id, exc)
         try:
-            job.refresh_from_db(fields=['status'])
+            job.refresh_from_db()
             if job.status == BulkJob.STATUS_PROCESSING:
-                job.status        = BulkJob.STATUS_FAILED
-                job.error_message = f'Unexpected error: {exc}'
-                job.completed_at  = timezone.now()
-                job.save(update_fields=['status', 'error_message', 'completed_at'])
+                # Keep everything verified so far downloadable and hand back the
+                # credits reserved for rows that were never processed.
+                finalise_partial_job(
+                    job, BulkJob.STATUS_FAILED,
+                    f'Stopped after {job.processed_count} of {job.total_count} emails: {exc}',
+                )
         except Exception:
-            pass
+            logger.exception('BulkJob %s: could not finalise after failure', job_id)
         raise
 
 
@@ -214,13 +293,29 @@ def _run_bulk_job(task, job, job_id: str, start_index: int):
             job.save(update_fields=['status', 'error_message', 'completed_at'])
             return
 
-        remaining = total
-        if user.credits < remaining:
-            job.status        = BulkJob.STATUS_FAILED
-            job.error_message = f'Insufficient credits: need {total}, have {user.credits}.'
-            job.completed_at  = timezone.now()
-            job.save(update_fields=['status', 'error_message', 'completed_at'])
-            return
+        # Reserve credits for the entire list before verifying anything. This is
+        # a real deduction under select_for_update, not a balance read, so two
+        # jobs (or a single verify) racing for the same balance can no longer
+        # both pass — and a running job can never hit zero part-way through.
+        # Whatever is left unprocessed is refunded when the job finishes.
+        already_reserved = job.credits_reserved
+        to_reserve = total - already_reserved
+        if to_reserve > 0:
+            try:
+                deduct_credits(user.pk, to_reserve, operation='used', reference=f'bulk:{job_id}')
+            except InsufficientCredits:
+                balance = User.objects.filter(pk=user.pk).values_list('credits', flat=True).first() or 0
+                job.status        = BulkJob.STATUS_FAILED
+                job.error_message = (
+                    f'Not enough credits to start this job: it needs {total} credits '
+                    f'and you have {balance}. No credits were used and nothing was '
+                    f'processed — top up and upload the file again.'
+                )
+                job.completed_at = timezone.now()
+                job.save(update_fields=['status', 'error_message', 'completed_at'])
+                return
+            job.credits_reserved = already_reserved + to_reserve
+            job.save(update_fields=['credits_reserved'])
 
     # Slice to unprocessed emails when resuming
     emails = all_emails[start_index:]
@@ -290,27 +385,12 @@ def _run_bulk_job(task, job, job_id: str, start_index: int):
         job.processed_count = processed_so_far
         job.save(update_fields=['processed_count'])
 
-        # Every BATCH_SIZE emails: flush to DB, deduct credits, check for pause
+        # Every BATCH_SIZE emails: flush results to DB and check for a pause.
+        # No credit deduction here — the whole list was already paid for up
+        # front, so the run cannot be interrupted by an empty balance.
         if len(results_to_create) >= BATCH_SIZE:
             VerificationResult.objects.bulk_create(results_to_create, ignore_conflicts=True)
-            credits_batch = len(results_to_create)
             results_to_create = []
-
-            try:
-                deduct_credits(user.pk, credits_batch, operation='used', reference=f'bulk:{job_id}')
-            except InsufficientCredits:
-                job.status           = BulkJob.STATUS_FAILED
-                job.error_message    = 'Ran out of credits during processing.'
-                job.processed_count  = processed_so_far
-                job.valid_count      = valid_count
-                job.invalid_count    = invalid_count
-                job.risky_count      = risky_count
-                job.unknown_count    = unknown_count
-                job.credits_used     = processed_so_far
-                job.deep_checks_made = deep_checks_made
-                job.completed_at     = timezone.now()
-                job.save()
-                return
 
             job.valid_count      = valid_count
             job.invalid_count    = invalid_count
@@ -332,10 +412,6 @@ def _run_bulk_job(task, job, job_id: str, start_index: int):
     # Save any remaining results
     if results_to_create:
         VerificationResult.objects.bulk_create(results_to_create, ignore_conflicts=True)
-        try:
-            deduct_credits(user.pk, len(results_to_create), operation='used', reference=f'bulk:{job_id}')
-        except InsufficientCredits:
-            pass
 
     # -- Write result CSV (use full email list so existing + new results are included) --
     result_path = _write_result_csv(job, all_emails)
@@ -358,41 +434,50 @@ def _run_bulk_job(task, job, job_id: str, start_index: int):
     job.completed_at    = timezone.now()
     job.save()
 
+    # Reserved == processed for a clean run, but return anything left over
+    # (e.g. the list shrank after a plan row-limit truncation).
+    refund_unused_credits(job_id)
+
     logger.info('BulkJob %s done: %d emails, %d valid, %d invalid, %d risky, %d unknown',
                 job_id, total, valid_count, invalid_count, risky_count, unknown_count)
 
     _fire_webhook(user, job)
 
 
-def _write_result_csv(job: BulkJob, emails: list[str]) -> str:
-    """Write verification results to a CSV file. Returns the file path."""
+def _write_result_csv(job: BulkJob, emails: list[str] | None = None) -> str:
+    """
+    Write verification results to a CSV file. Returns the file path.
+    `emails` orders the output to match the uploaded file; pass None (partial
+    jobs, where the source list isn't at hand) to write every stored result.
+    """
     from django.conf import settings
     import os
+
+    fields = [
+        'email', 'status', 'sub_status', 'score',
+        'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
+        'mx_found', 'smtp_valid', 'mx_record', 'domain',
+    ]
 
     result_dir = os.path.join(settings.MEDIA_ROOT, 'results')
     os.makedirs(result_dir, exist_ok=True)
     result_path = os.path.join(result_dir, f'job_{job.pk}.csv')
 
-    # Build a lookup from flat values — avoids loading full ORM objects into memory
-    results = {
-        row['email']: row
-        for row in job.results.values(
-            'email', 'status', 'sub_status', 'score',
-            'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
-            'mx_found', 'smtp_valid', 'mx_record', 'domain',
-        ).iterator(chunk_size=500)
-    }
+    rows = job.results.values(*fields).iterator(chunk_size=500)
 
     with open(result_path, 'w', newline='', encoding='utf-8') as fh:
-        writer = csv.DictWriter(fh, fieldnames=[
-            'email', 'status', 'sub_status', 'score',
-            'is_disposable', 'is_role_based', 'is_catch_all', 'is_free_email',
-            'mx_found', 'smtp_valid', 'mx_record', 'domain',
-        ])
+        writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()
-        for email in emails:
-            r = results.get(email)
-            if r:
-                writer.writerow(r)
+
+        if emails is None:
+            for row in rows:
+                writer.writerow(row)
+        else:
+            # Build a lookup from flat values — avoids loading full ORM objects into memory
+            results = {row['email']: row for row in rows}
+            for email in emails:
+                r = results.get(email)
+                if r:
+                    writer.writerow(r)
 
     return result_path

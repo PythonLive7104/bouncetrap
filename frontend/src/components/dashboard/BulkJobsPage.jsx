@@ -170,14 +170,23 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadCatego
   const isActive    = job.status === 'queued' || job.status === 'processing'
   const isPaused    = job.status === 'paused'
   const isFailed    = job.status === 'failed'
-  const canReport   = isDone && userPlan === 'paid'
+  // A job that stopped early still verified rows the user paid for — those stay
+  // downloadable, so the download UI keys off results rather than "done".
+  const isPartial   = job.is_partial || (!isDone && !isActive && (job.processed_count || 0) > 0)
+  const canDownload = isDone || isPartial
+  // Paused jobs are also downloadable, but they were stopped on purpose — the
+  // "stopped early" explanation only belongs on failed/cancelled ones.
+  const stoppedEarly = isPartial && !isPaused
+  const canReport   = canDownload && userPlan === 'paid'
 
   const total   = job.total_count   || 0
   const valid   = job.valid_count   || 0
   const invalid = job.invalid_count || 0
   const risky   = job.risky_count   || 0
   const unknown = job.unknown_count || 0
-  const validPct = total > 0 ? Math.round((valid / total) * 100) : 0
+  // Score a partial job against the rows it actually verified, not the whole file.
+  const scored  = isPartial ? (job.processed_count || 0) : total
+  const validPct = scored > 0 ? Math.round((valid / scored) * 100) : 0
 
   const ActionButtons = () => (
     <>
@@ -205,7 +214,7 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadCatego
           </button>
         </>
       )}
-      {isDone && (
+      {canDownload && (
         <>
           {canReport && (
             <button onClick={() => onDownloadReport(job.id)}
@@ -261,7 +270,12 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadCatego
           {/* Badges on their own line so they never collide with filename */}
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <StatusBadge status={job.status} />
-            {isDone && job.health_grade && <HealthBadge grade={job.health_grade} />}
+            {stoppedEarly && (
+              <span className="inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium bg-amber-500/15 text-amber-400 border-amber-500/30">
+                Partial results ready
+              </span>
+            )}
+            {canDownload && job.health_grade && <HealthBadge grade={job.health_grade} />}
           </div>
         </div>
 
@@ -277,18 +291,18 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadCatego
           <ProgressBar processed={job.processed_count || 0} total={total} />
         )}
 
-        {isDone && (
+        {canDownload && (
           <div className="mt-2.5">
-            {total > 0 && (
+            {scored > 0 && (
               <div className="flex h-2 rounded-full overflow-hidden gap-0.5 mb-2.5">
-                <div className="bg-emerald-500 rounded-l-full transition-all" style={{ width: `${Math.round(valid/total*100)}%` }} title={`${valid} valid`} />
-                <div className="bg-red-500 transition-all" style={{ width: `${Math.round(invalid/total*100)}%` }} title={`${invalid} invalid`} />
-                <div className="bg-amber-500 transition-all" style={{ width: `${Math.round(risky/total*100)}%` }} title={`${risky} risky`} />
-                <div className="bg-slate-600 rounded-r-full transition-all" style={{ width: `${Math.round(unknown/total*100)}%` }} title={`${unknown} unknown`} />
+                <div className="bg-emerald-500 rounded-l-full transition-all" style={{ width: `${Math.round(valid/scored*100)}%` }} title={`${valid} valid`} />
+                <div className="bg-red-500 transition-all" style={{ width: `${Math.round(invalid/scored*100)}%` }} title={`${invalid} invalid`} />
+                <div className="bg-amber-500 transition-all" style={{ width: `${Math.round(risky/scored*100)}%` }} title={`${risky} risky`} />
+                <div className="bg-slate-600 rounded-r-full transition-all" style={{ width: `${Math.round(unknown/scored*100)}%` }} title={`${unknown} unknown`} />
               </div>
             )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <span className="text-slate-400 font-medium">{fmt(total)} total</span>
+              <span className="text-slate-400 font-medium">{fmt(scored)} verified{isPartial && total > 0 ? ` of ${fmt(total)}` : ' total'}</span>
               <span className="text-emerald-400">{fmt(valid)} valid <span className="text-slate-600">({validPct}%)</span></span>
               <span className="text-red-400">{fmt(invalid)} invalid</span>
               <span className="text-amber-400">{fmt(risky)} risky</span>
@@ -304,6 +318,15 @@ function JobRow({ job, onCancel, onPause, onResume, onDownload, onDownloadCatego
               </div>
             )}
           </div>
+        )}
+
+        {stoppedEarly && (
+          <p className="mt-2 text-xs text-amber-300/90 flex gap-1.5">
+            <span className="text-amber-500/70 mt-0.5">→</span>
+            This job stopped early, but the {fmt(scored)} address{scored === 1 ? '' : 'es'} it
+            already verified are ready to download below. You were only charged for those
+            {job.credits_refunded > 0 ? ` — ${fmt(job.credits_refunded)} unused credits were refunded.` : '.'}
+          </p>
         )}
 
         {isFailed && job.error_message && (
