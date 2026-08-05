@@ -302,6 +302,25 @@ export default function DashboardLayout() {
     return () => { cancelled = true }
   }, [location.pathname, setCredits, setUser])
 
+  // The persisted user object only learns about email confirmation in the
+  // browser that opened the link — verify on a phone and the desktop copy keeps
+  // saying unverified forever. Re-read the profile until the server confirms it,
+  // then stop: once email_verified is true this effect returns immediately, so
+  // it costs nothing for the usual case.
+  const isLoggedIn    = !!user
+  const emailVerified = !!user?.email_verified
+  useEffect(() => {
+    if (!isLoggedIn || emailVerified) return
+    let cancelled = false
+    api.get('/auth/profile/')
+      .then(({ data }) => {
+        if (cancelled) return
+        setUser((prev) => (prev ? { ...prev, ...data } : data))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [location.pathname, isLoggedIn, emailVerified, setUser])
+
   function handleLogout() {
     logout()
     navigate('/')
