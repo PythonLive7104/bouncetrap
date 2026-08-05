@@ -23,6 +23,10 @@ backend/.env
 backend/.env.*
 !backend/.env.production.example
 
+# Compose-level env (Postgres credentials) — keep the example, ignore the real one
+/.env
+!/.env.example
+
 
 
 # ── Docker ────────────────────────────────────────────────────────────────
